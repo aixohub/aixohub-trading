@@ -22,24 +22,16 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import collections
-from copy import copy
-from datetime import date, datetime, timedelta
 import threading
 import uuid
+from datetime import date, datetime, timedelta
 
-import ib.ext.Order
-import ib.opt as ibopt
-
-from backtrader.feed import DataBase
-from backtrader import (TimeFrame, num2date, date2num, BrokerBase,
-                        Order, OrderBase, OrderData)
-from backtrader.utils.py3 import bytes, bstr, with_metaclass, queue, MAXFLOAT
-from backtrader.metabase import MetaParams
+import ibapi
+from backtrader import (num2date, date2num, BrokerBase,
+                        Order, OrderBase)
 from backtrader.comminfo import CommInfoBase
-from backtrader.position import Position
 from backtrader.stores import ibstore
-from backtrader.utils import AutoDict, AutoOrderedDict
-from backtrader.comminfo import CommInfoBase
+from backtrader.utils.py3 import bytes, bstr, with_metaclass, queue
 
 bytes = bstr  # py2/3 need for ibpy
 
@@ -65,7 +57,7 @@ class IBOrderState(object):
         return '\n'.join(txt)
 
 
-class IBOrder(OrderBase, ib.ext.Order.Order):
+class IBOrder(OrderBase, ibapi.Order):
     '''Subclasses the IBPy order to provide the minimum extra functionality
     needed to be compatible with the internally defined orders
 
@@ -128,7 +120,7 @@ class IBOrder(OrderBase, ib.ext.Order.Order):
         self.ordtype = self.Buy if action == 'BUY' else self.Sell
 
         super(IBOrder, self).__init__()
-        ib.ext.Order.Order.__init__(self)  # Invoke 2nd base class
+        ibapi.Order.__init__(self)  # Invoke 2nd base class
 
         # Now fill in the specific IB parameters
         self.m_orderType = self._IBOrdTypes[self.exectype]

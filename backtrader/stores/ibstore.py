@@ -30,9 +30,8 @@ import random
 import threading
 import time
 
-from ib.ext.Contract import Contract
-import ib.opt as ibopt
-
+from ibapi import Contract
+import  ibapi
 from backtrader import TimeFrame, Position
 from backtrader.metabase import MetaParams
 from backtrader.utils.py3 import bytes, bstr, queue, with_metaclass, long
@@ -252,7 +251,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             self.clientId = self.p.clientId
 
         # ibpy connection object
-        self.conn = ibopt.ibConnection(
+        self.conn = ibapi.ibConnection(
             host=self.p.host, port=self.p.port, clientId=self.clientId)
 
         # register a printall method if requested
@@ -265,7 +264,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             if not getattr(method, '_ibregister', False):
                 continue
 
-            message = getattr(ibopt.message, name)
+            message = getattr(ibapi.message, name)
             self.conn.register(method, message)
 
         # This utility key function transforms a barsize into a:
