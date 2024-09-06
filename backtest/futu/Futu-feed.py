@@ -18,32 +18,37 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 ###############################################################################
+
+
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-# The modules below should/must define __all__ with the objects wishes
-# or prepend an "_" (underscore) to private classes/variables
-
-try:
-    from .ibstore import IBStore
-except ImportError:
-    pass  # The user may not have ibpy installed
-
-try:
-    from .futustore import FutuStore
-except ImportError:
-    pass  # The user may not have ibpy installed
+import backtrader as bt
+from backtrader.feeds import FutuData
 
 
-try:
-    from .vcstore import VCStore
-except ImportError:
-    pass  # The user may not have a module installed
+class TestStrategy(bt.Strategy):
+    def __init__(self):
+        self.dataclose = self.datas[0].close
 
-try:
-    from .oandastore import OandaStore
-except ImportError:
-    pass  # The user may not have a module installed
+    def next(self):
+        print(f'Close: {self.dataclose[0]}')
 
 
-from .vchartfile import VChartFile
+ib_symbol = 'EUR.USD-CASH-IDEALPRO'
+compression = 5
+
+
+def run(args=None):
+    cerebro = bt.Cerebro()
+
+    # 使用自定义数据源
+    data = FutuData(symbol='AAPL', start_date='2023-01-01', end_date='2023-12-31')
+    cerebro.adddata(data)
+
+    cerebro.addstrategy(TestStrategy)
+    cerebro.run()
+
+
+if __name__ == '__main__':
+    run()

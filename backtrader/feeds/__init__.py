@@ -38,6 +38,12 @@ except ImportError:
     pass  # The user may not have ibpy installed
 
 try:
+    from .futudata import FutuData
+except ImportError:
+    pass  # The user may not have something installed
+
+
+try:
     from .vcdata import *
 except ImportError:
     pass  # The user may not have something installed

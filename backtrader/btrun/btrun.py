@@ -54,6 +54,11 @@ except AttributeError:
     pass  # no ibpy available
 
 try:
+    DATAFORMATS['futudata'] = bt.feeds.FutuData,
+except AttributeError:
+    pass  # no oandapy available
+
+try:
     DATAFORMATS['oandadata'] = bt.feeds.OandaData,
 except AttributeError:
     pass  # no oandapy available
