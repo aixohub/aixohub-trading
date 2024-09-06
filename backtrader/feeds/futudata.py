@@ -23,8 +23,7 @@ from __future__ import (absolute_import, division, print_function,
 
 import datetime
 
-import pandas as pd
-from futu import OpenQuoteContext, KLType, RET_OK
+from futu import *
 
 from backtrader import TimeFrame, date2num
 from backtrader.feed import DataBase
@@ -48,8 +47,8 @@ class FutuData(with_metaclass(MetaFutuData, DataBase)):
 
     '''
     params = (
-        ('symbol', ''),  # 股票代码
-        ('timeframe', TimeFrame.Days),  # 时间框架
+        ('symbol', list()),  # 股票代码
+        ('trading_period', KLType.K_1M),  # 时间框架
         ('start_date', None),  # 开始日期
         ('end_date', None),  # 结束日期
     )
@@ -71,6 +70,7 @@ class FutuData(with_metaclass(MetaFutuData, DataBase)):
         return True
 
     def __init__(self, **kwargs):
+        self._started = None
         self.futu = self._store(**kwargs)
         self.quote_ctx = OpenQuoteContext(host='127.0.0.1', port=11111)
 
@@ -89,30 +89,26 @@ class FutuData(with_metaclass(MetaFutuData, DataBase)):
         '''Starts the IB connecction and gets the real contract and
         contractdetails if it exists'''
         super(FutuData, self).start()
-        if self.p.fromdate is None:
+        if self.p.start_date is None:
             self.p.start_date = datetime.datetime(2022, 1, 1)
-        if self.p.todate is None:
+        if self.p.end_date is None:
             self.p.end_date = datetime.datetime.now()
+        self._started = True
 
     def stop(self):
         '''Stops and tells the store to stop'''
         super(FutuData, self).stop()
         self.quote_ctx.close()
 
-    def haslivedata(self):
-        return bool(self._storedmsg or self.qlive)
+    def _load(self):
+        self.quote_ctx.set_handler(OnTickClass())
 
-    def _load_data(self):
-        ret, data, page_req_key = self.quote_ctx.request_history_kline(
-            self.p.symbol,
-            start=self.p.start_date.strftime('%Y-%m-%d'),
-            end=self.p.end_date.strftime('%Y-%m-%d'),
-            ktype=KLType.K_DAY,
-            max_count=1000
-        )
-
+        ret, data = self.quote_ctx.subscribe(code_list=self.p.symbol,
+                                             subtype_list=[SubType.TICKER, self.p.trading_period])
         if ret == RET_OK:
-            self.data = data
+            if data is not None:
+                print(data)
+                self.data = data
         else:
             print('error:', data)
 
@@ -130,3 +126,13 @@ class FutuData(with_metaclass(MetaFutuData, DataBase)):
 
         self.data = self.data.iloc[1:]
         return True
+
+
+class OnTickClass(TickerHandlerBase):
+    def on_recv_rsp(self, rsp_pb):
+        ret_code, data = super(OnTickClass, self).on_recv_rsp(rsp_pb)
+        if ret_code != RET_OK:
+            print("TickerTest: error, msg: %s" % data)
+            return RET_ERROR, data
+        print("TickerTest ", data)  # TickerTest 自己的处理逻辑
+        return RET_OK, data

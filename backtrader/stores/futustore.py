@@ -112,70 +112,7 @@ def futuregister(f):
 class FutuStore(with_metaclass(MetaSingleton, object)):
     '''Singleton class wrapping an ibpy ibConnection instance.
 
-    The parameters can also be specified in the classes which use this store,
-    like ``IBData`` and ``IBBroker``
-
-    Params:
-
-      - ``host`` (default:``127.0.0.1``): where IB TWS or IB Gateway are
-        actually running. And although this will usually be the localhost, it
-        must not be
-
-      - ``port`` (default: ``7496``): port to connect to. The demo system uses
-        ``7497``
-
-      - ``clientId`` (default: ``None``): which clientId to use to connect to
-        TWS.
-
-        ``None``: generates a random id between 1 and 65535
-        An ``integer``: will be passed as the value to use.
-
-      - ``notifyall`` (default: ``False``)
-
-        If ``False`` only ``error`` messages will be sent to the
-        ``notify_store`` methods of ``Cerebro`` and ``Strategy``.
-
-        If ``True``, each and every message received from TWS will be notified
-
-      - ``_debug`` (default: ``False``)
-
-        Print all messages received from TWS to standard output
-
-      - ``reconnect`` (default: ``3``)
-
-        Number of attempts to try to reconnect after the 1st connection attempt
-        fails
-
-        Set it to a ``-1`` value to keep on reconnecting forever
-
-      - ``timeout`` (default: ``3.0``)
-
-        Time in seconds between reconnection attemps
-
-      - ``timeoffset`` (default: ``True``)
-
-        If True, the time obtained from ``reqCurrentTime`` (IB Server time)
-        will be used to calculate the offset to localtime and this offset will
-        be used for the price notifications (tickPrice events, for example for
-        CASH markets) to modify the locally calculated timestamp.
-
-        The time offset will propagate to other parts of the ``backtrader``
-        ecosystem like the **resampling** to align resampling timestamps using
-        the calculated offset.
-
-      - ``timerefresh`` (default: ``60.0``)
-
-        Time in seconds: how often the time offset has to be refreshed
-
-      - ``indcash`` (default: ``True``)
-
-        Manage IND codes as if they were cash for price retrieval
     '''
-
-    # Set a base for the data requests (historical/realtime) to distinguish the
-    # id in the error notifications from orders, where the basis (usually
-    # starting at 1) is set by TWS
-    REQIDBASE = 0x01000000
 
     BrokerCls = None  # broker class will autoregister
     DataCls = None  # data class will auto register
@@ -183,6 +120,8 @@ class FutuStore(with_metaclass(MetaSingleton, object)):
     params = (
         ('host', '127.0.0.1'),
         ('port', 11111),
+        ('market', TrdMarket.HK),
+        ('trade_passwd', None),
         ('clientId', None),  # None generates a random clientid 1 -> 2^16
         ('notifyall', False),
         ('_debug', False),
@@ -243,7 +182,6 @@ class FutuStore(with_metaclass(MetaSingleton, object)):
 
         self.positions = collections.defaultdict(Position)  # actual positions
 
-        self._tickerId = itertools.count(self.REQIDBASE)  # unique tickerIds
         self.orderid = None  # next possible orderid (will be itertools.count)
 
         self.cdetails = collections.defaultdict(list)  # hold cdetails requests
@@ -252,8 +190,10 @@ class FutuStore(with_metaclass(MetaSingleton, object)):
 
         self.notifs = queue.Queue()  # store notifications for cerebro
 
+        self.trade_passwd = '123456'
         # futu connection object
-        self.conn = FutuTradeContext(env=self._env, market=TrdMarket.HK, host=self.p.host, port=self.p.port)
+        self.conn = FutuTradeContext(env=self._env, market=TrdMarket.HK, host=self.p.host,
+                                     port=self.p.port, trade_passwd=self.trade_passwd)
 
         # Register decorated methods with the conn
         methods = inspect.getmembers(self, inspect.ismethod)
@@ -561,9 +501,7 @@ class FutuStore(with_metaclass(MetaSingleton, object)):
         with self._lock_tmoffset:
             return self.tmoffset
 
-    def nextTickerId(self):
-        # Get the next ticker using next on the itertools.count
-        return next(self._tickerId)
+
 
     @futuregister
     def nextValidId(self, msg):
@@ -1420,35 +1358,28 @@ class FutuTradeContext:
         self.port = port
         self.isConnected = False
         self.trade_passwd = trade_passwd
-        self.trade_context = OpenSecTradeContext(filter_trdmarket=market, host=host, port=port, is_encrypt=None,
-                                                 security_firm=SecurityFirm.FUTUSECURITIES)
-        self.futureTradeContext = OpenFutureTradeContext(host=host, port=port, is_encrypt=None,
-                                                         security_firm=SecurityFirm.FUTUSECURITIES)
+
         self.quote_data_ctx = OpenQuoteContext(host=self.host, port=self.port, is_encrypt=None)
 
     def connect(self):
-        self.trade_context.unlock_trade(self.trade_passwd)
-        self.futureTradeContext.unlock_trade(self.trade_passwd)
         self.isConnected = True
 
     def disconnect(self):
         self.quote_data_ctx.close()
-        self.trade_context.close()
-        self.futureTradeContext.close()
         self.isConnected = False
 
     def isConnected(self):
         return self.isConnected
 
-    def get_acc_cash(self):
-        ret, data = self.trade_context.get_acc_list()
-        if ret == RET_OK:
-            acc_id = data['acc_id'][0]
-            ret, data = self.trade_context.accinfo_query(acc_id=acc_id)
-            if ret == RET_OK:
-                print(data)
-                return data['cash'][0]
-        return float()
+    # def get_acc_cash(self):
+    #     ret, data = self.trade_context.get_acc_list()
+    #     if ret == RET_OK:
+    #         acc_id = data['acc_id'][0]
+    #         ret, data = self.trade_context.accinfo_query(acc_id=acc_id)
+    #         if ret == RET_OK:
+    #             print(data)
+    #             return data['cash'][0]
+    #     return float()
 
 
 if __name__ == '__main__':
