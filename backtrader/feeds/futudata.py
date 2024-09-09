@@ -26,7 +26,7 @@ import datetime
 from futu import *
 from pandas._libs.tslibs.timezones import dateutil_gettz as gettz
 
-from backtrader import TimeFrame, date2num, num2date
+from backtrader import TimeFrame, date2num
 from backtrader.feed import DataBase
 from backtrader.stores import futustore
 from backtrader.utils.py3 import (with_metaclass)
@@ -42,8 +42,9 @@ class MetaFutuData(DataBase.__class__):
         futustore.FutuStore.DataCls = cls
 
 
-DATA_COLUMNS = (
-    'time_key', 'open', 'close', ' high', 'low', 'volume', 'turnover', 'pe_ratio', 'turnover_rate', 'last_close')
+DATA_COLUMNS = ('code',
+                'time_key', 'open', 'close', ' high', 'low', 'volume', 'turnover', 'pe_ratio', 'turnover_rate',
+                'last_close')
 
 
 class FutuData(with_metaclass(MetaFutuData, DataBase)):
@@ -81,6 +82,7 @@ class FutuData(with_metaclass(MetaFutuData, DataBase)):
         self.quote_ctx = OpenQuoteContext(host='127.0.0.1', port=11111)
         self._tzinput = False
         self._tz = gettz("US/Eastern")
+        self.code = self.p.symbol
 
     def islive(self):
         '''Returns ``True`` to notify ``Cerebro`` that preloading and runonce
@@ -110,7 +112,6 @@ class FutuData(with_metaclass(MetaFutuData, DataBase)):
             self.todate = date2num(dt.datetime.strptime(self.p.todate, '%Y-%m-%d'))
         self._started = True
         self.tz = "US/Eastern"
-
 
     def stop(self):
         '''Stops and tells the store to stop'''

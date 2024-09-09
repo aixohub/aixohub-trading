@@ -23,42 +23,54 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
+from futu import *
+
 import backtrader as bt
 from backtrader.feeds import FutuData
 
 
 class TestStrategy(bt.Strategy):
+    params = dict(
+        smaperiod=3,
+        short_period=3,
+        long_period=10,
+        stop_loss=0.02,
+    )
+
     def __init__(self):
-        self.open = self.datas[0].open
-        self.close = self.datas[0].close
-        self.high = self.datas[0].high
-        self.low = self.datas[0].low
-        self.volume = self.datas[0].volume
-        self.turnover = self.datas[0].turnover
+        self.sma = bt.indicators.MovAv.SMA(self.data.close, period=self.p.smaperiod)
+        self.short_ma = bt.indicators.MovAv.SMA(
+            self.data.close, period=self.p.short_period
+        )
+        self.long_ma = bt.indicators.MovAv.SMA(
+            self.data.close, period=self.p.long_period
+        )
+        self.crossup = bt.ind.CrossUp(self.long_ma, self.short_ma)
+
+        print('--------------------------------------------------')
+        print('TestStrategy Created')
+        print('--------------------------------------------------')
 
     def next(self):
-        # aa = self.datas[0].datetime.datetime(0)
-        print(f''' turnover: {self.turnover[0]}  open: {self.open[0]}  Close: {self.close[0]}  high: {self.high[0]}   low: {self.low[0]}   volume: {self.volume[0]}  ''')
+        print(
+            f''' code: {self.data.code} datetime: {self.datas[0].datetime.datetime(0)} sma: {self.sma[0]} long_ma: {self.long_ma[0]} crossup: {self.crossup[0]} open: {self.data.open[0]}  Close: {self.data.close[0]}  ''')
 
-
-ib_symbol = 'EUR.USD-CASH-IDEALPRO'
-compression = 5
+        # if self.data.close > self.sma:
+        #     print(f"""buy  sma {self.sma}  close :{self.data.close}""")
+        # elif self.data.close < self.sma:
+        #    print(f"""sell  sma {self.sma}  close :{self.data.close}""")
 
 
 def run(args=None):
     cerebro = bt.Cerebro()
-    # code = get_option_chain('US.NVDA')
-    code = 'HK.03690'
+    code = get_option_chain('US.NVDA')
+    # code = 'HK.03690'
     # 使用自定义数据源
     data = FutuData(symbol=code, fromdate='2024-09-01', todate='2024-09-30')
     cerebro.adddata(data)
 
     cerebro.addstrategy(TestStrategy)
     cerebro.run()
-
-
-from futu import *
-import time
 
 
 def get_option_chain(code):
@@ -81,7 +93,7 @@ def get_option_chain(code):
                     option_code = data2['code'][39]
                     print(f"""option_code : {option_code}""")
                     quote_ctx.close()
-                    return "US.NVDA240913P95000"
+                    return "US.NVDA240913C110000"
             else:
                 print('error:', data2)
             index = index + 1
