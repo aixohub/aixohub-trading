@@ -24,8 +24,9 @@ from __future__ import (absolute_import, division, print_function,
 import datetime
 
 from futu import *
+from pandas._libs.tslibs.timezones import dateutil_gettz as gettz
 
-from backtrader import TimeFrame, date2num
+from backtrader import TimeFrame, date2num, num2date
 from backtrader.feed import DataBase
 from backtrader.stores import futustore
 from backtrader.utils.py3 import (with_metaclass)
@@ -41,18 +42,23 @@ class MetaFutuData(DataBase.__class__):
         futustore.FutuStore.DataCls = cls
 
 
+DATA_COLUMNS = (
+    'time_key', 'open', 'close', ' high', 'low', 'volume', 'turnover', 'pe_ratio', 'turnover_rate', 'last_close')
+
+
 class FutuData(with_metaclass(MetaFutuData, DataBase)):
-    '''futu  Brokers Data Feed.
+    """futu  Brokers Data Feed.
 
 
-    '''
+    """
     params = (
-        ('symbol', list()),  # 股票代码
-        ('trading_period', KLType.K_1M),  # 时间框架
-        ('start_date', None),  # 开始日期
-        ('end_date', None),  # 结束日期
+        ('symbol', ''),  # 股票代码
+        ('trading_period', KLType.K_3M),  # 时间框架
+        ('fromdate', None),  # 开始日期
+        ('todate', None),  # 结束日期
     )
 
+    lines = DATA_COLUMNS
     _store = futustore.FutuStore
 
     # Minimum size supported by real-time bars
@@ -73,10 +79,15 @@ class FutuData(with_metaclass(MetaFutuData, DataBase)):
         self._started = None
         self.futu = self._store(**kwargs)
         self.quote_ctx = OpenQuoteContext(host='127.0.0.1', port=11111)
+        self._tzinput = False
+        self._tz = gettz("US/Eastern")
 
     def islive(self):
         '''Returns ``True`` to notify ``Cerebro`` that preloading and runonce
         should be deactivated'''
+        return True
+
+    def haslivedata(self):
         return True
 
     def setenvironment(self, env):
@@ -86,46 +97,51 @@ class FutuData(with_metaclass(MetaFutuData, DataBase)):
         env.addstore(self.futu)
 
     def start(self):
-        '''Starts the IB connecction and gets the real contract and
-        contractdetails if it exists'''
         super(FutuData, self).start()
-        if self.p.start_date is None:
-            self.p.start_date = datetime.datetime(2022, 1, 1)
-        if self.p.end_date is None:
-            self.p.end_date = datetime.datetime.now()
+        '''Starts the futu connecction '''
+        if self.p.fromdate is None:
+            self.fromdate = date2num(datetime.fromtimestamp(time.time()))
+        else:
+            self.fromdate = date2num(dt.datetime.strptime(self.p.fromdate, '%Y-%m-%d'))
+
+        if self.p.todate is None:
+            self.todate = date2num(datetime.fromtimestamp(time.time()))
+        else:
+            self.todate = date2num(dt.datetime.strptime(self.p.todate, '%Y-%m-%d'))
         self._started = True
+        self.tz = "US/Eastern"
+
 
     def stop(self):
         '''Stops and tells the store to stop'''
         super(FutuData, self).stop()
+        print("quote_ctx.close()")
         self.quote_ctx.close()
 
     def _load(self):
         self.quote_ctx.set_handler(OnTickClass())
 
         ret, data = self.quote_ctx.subscribe(code_list=self.p.symbol,
-                                             subtype_list=[SubType.TICKER, self.p.trading_period])
+                                             subtype_list=[SubType.K_5M])
         if ret == RET_OK:
-            if data is not None:
-                print(data)
-                self.data = data
+            ret, data = self.quote_ctx.get_cur_kline(self.p.symbol, 1, KLType.K_5M, AuType.QFQ)  # 获取港股00700最近2个 K 线数据
+            if ret == RET_OK:
+                if data is not None:
+                    # print(data)
+                    self.lines.open[0] = data['open'][0]
+                    self.lines.close[0] = data['close'][0]
+                    self.lines.high[0] = data['high'][0]
+                    self.lines.low[0] = data['low'][0]
+                    self.lines.volume[0] = data['volume'][0]
+                    self.lines.turnover[0] = data['turnover'][0]
+                    self.lines.last_close[0] = data['last_close'][0]
+                    local_time = dt.datetime.strptime(data['time_key'][0], '%Y-%m-%d %H:%M:%S')
+                    self.lines.datetime[0] = date2num(local_time)
+                    return True
+            else:
+                print('error:', data)
         else:
             print('error:', data)
-
-    def _get_next(self):
-        if len(self.data) == 0:
-            return False
-
-        row = self.data.iloc[0]
-        self.lines.datetime[0] = date2num(pd.to_datetime(row['time_key']))
-        self.lines.open[0] = row['open']
-        self.lines.high[0] = row['high']
-        self.lines.low[0] = row['low']
-        self.lines.close[0] = row['close']
-        self.lines.volume[0] = row['volume']
-
-        self.data = self.data.iloc[1:]
-        return True
 
 
 class OnTickClass(TickerHandlerBase):

@@ -29,10 +29,16 @@ from backtrader.feeds import FutuData
 
 class TestStrategy(bt.Strategy):
     def __init__(self):
-        self.dataclose = self.datas[0].close
+        self.open = self.datas[0].open
+        self.close = self.datas[0].close
+        self.high = self.datas[0].high
+        self.low = self.datas[0].low
+        self.volume = self.datas[0].volume
+        self.turnover = self.datas[0].turnover
 
     def next(self):
-        print(f'Close: {self.dataclose[0]}')
+        # aa = self.datas[0].datetime.datetime(0)
+        print(f''' turnover: {self.turnover[0]}  open: {self.open[0]}  Close: {self.close[0]}  high: {self.high[0]}   low: {self.low[0]}   volume: {self.volume[0]}  ''')
 
 
 ib_symbol = 'EUR.USD-CASH-IDEALPRO'
@@ -41,9 +47,10 @@ compression = 5
 
 def run(args=None):
     cerebro = bt.Cerebro()
-    code = get_option_chain('US.NVDA')
+    # code = get_option_chain('US.NVDA')
+    code = 'HK.03690'
     # 使用自定义数据源
-    data = FutuData(symbol=code, start_date='2024-09-05', end_date='2024-09-06')
+    data = FutuData(symbol=code, fromdate='2024-09-01', todate='2024-09-30')
     cerebro.adddata(data)
 
     cerebro.addstrategy(TestStrategy)
@@ -69,12 +76,12 @@ def get_option_chain(code):
         for date in expiration_date_list:
             ret2, data2 = quote_ctx.get_option_chain(code=code, start=date, end=date, data_filter=filter1)
             if ret2 == RET_OK:
-                print(data2)
+                # print(data2)
                 if index == 2:
                     option_code = data2['code'][39]
                     print(f"""option_code : {option_code}""")
                     quote_ctx.close()
-                    return data2['code'].values.tolist()
+                    return "US.NVDA240913P95000"
             else:
                 print('error:', data2)
             index = index + 1
