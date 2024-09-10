@@ -43,7 +43,7 @@ class MetaFutuData(DataBase.__class__):
 
 
 DATA_COLUMNS = ('code',
-                'time_key', 'open', 'close', ' high', 'low', 'volume', 'turnover', 'pe_ratio', 'turnover_rate',
+                'open', 'close', ' high', 'low', 'volume', 'turnover', 'pe_ratio', 'turnover_rate',
                 'last_close')
 
 
@@ -57,6 +57,8 @@ class FutuData(with_metaclass(MetaFutuData, DataBase)):
         ('trading_period', KLType.K_3M),  # 时间框架
         ('fromdate', None),  # 开始日期
         ('todate', None),  # 结束日期
+        ('subscribeDataType', 'quote'),  # 结束日期
+        ('precision', 0.00001),  # 结束日期
     )
 
     lines = DATA_COLUMNS
@@ -81,8 +83,9 @@ class FutuData(with_metaclass(MetaFutuData, DataBase)):
         self.futu = self._store(**kwargs)
         self.quote_ctx = OpenQuoteContext(host='127.0.0.1', port=11111)
         self._tzinput = False
-        self._tz = gettz("US/Eastern")
+        self._tz = datetime.timezone("US/Eastern")
         self.code = self.p.symbol
+        self._calendar = None
 
     def islive(self):
         '''Returns ``True`` to notify ``Cerebro`` that preloading and runonce
@@ -122,27 +125,53 @@ class FutuData(with_metaclass(MetaFutuData, DataBase)):
     def _load(self):
         self.quote_ctx.set_handler(OnTickClass())
 
-        ret, data = self.quote_ctx.subscribe(code_list=self.p.symbol,
-                                             subtype_list=[SubType.K_5M])
-        if ret == RET_OK:
-            ret, data = self.quote_ctx.get_cur_kline(self.p.symbol, 1, KLType.K_5M, AuType.QFQ)  # 获取港股00700最近2个 K 线数据
+        if self.p.subscribeDataType is None:
+            ret, data = self.quote_ctx.subscribe(code_list=self.p.symbol, subtype_list=[SubType.K_5M])
             if ret == RET_OK:
-                if data is not None:
-                    # print(data)
-                    self.lines.open[0] = data['open'][0]
-                    self.lines.close[0] = data['close'][0]
-                    self.lines.high[0] = data['high'][0]
-                    self.lines.low[0] = data['low'][0]
-                    self.lines.volume[0] = data['volume'][0]
-                    self.lines.turnover[0] = data['turnover'][0]
-                    self.lines.last_close[0] = data['last_close'][0]
-                    local_time = dt.datetime.strptime(data['time_key'][0], '%Y-%m-%d %H:%M:%S')
-                    self.lines.datetime[0] = date2num(local_time)
-                    return True
+                ret, data = self.quote_ctx.get_cur_kline(self.p.symbol, 1, KLType.K_5M, AuType.QFQ)
+                if ret == RET_OK:
+                    if data is not None:
+                        self.lines.open[0] = data['open'][0]
+                        self.lines.close[0] = data['close'][0]
+                        self.lines.high[0] = data['high'][0]
+                        self.lines.low[0] = data['low'][0]
+                        self.lines.volume[0] = data['volume'][0]
+                        self.lines.turnover[0] = data['turnover'][0]
+                        self.lines.last_close[0] = data['last_close'][0]
+                        local_time = dt.datetime.strptime(data['time_key'][0], '%Y-%m-%d %H:%M:%S')
+                        self.lines.datetime[0] = date2num(local_time)
+                        self.current_data = local_time
+                        if self.previous_data == self.current_data:
+                            return False  # 重复数据，跳过
+                            # 更新上一次的数据
+                        self.previous_data = self.current_data
+                        return True  # 数据有效
+                else:
+                    print('error:', data)
             else:
                 print('error:', data)
         else:
-            print('error:', data)
+            ret_sub, err_message = self.quote_ctx.subscribe([self.p.symbol], [SubType.QUOTE], subscribe_push=True)
+            # 先订阅 K 线类型。订阅成功后 OpenD 将持续收到服务器的推送，False 代表暂时不需要推送给脚本
+            if ret_sub == RET_OK:  # 订阅成功
+                ret, data = self.quote_ctx.get_stock_quote([self.p.symbol])  # 获取订阅股票报价的实时数据
+                if ret == RET_OK:
+                    # print(data)
+                    self.lines.close[0] = data['last_price'][0]
+                    self.lines.open[0] = data['open_price'][0]
+                    self.lines.high[0] = data['high_price'][0]
+                    self.lines.low[0] = data['low_price'][0]
+                    self.lines.volume[0] = data['volume'][0]
+                    self.lines.turnover[0] = data['turnover'][0]
+                    data_date = data['data_date'][0]
+                    data_time = data['data_time'][0]
+                    local_time = dt.datetime.strptime(f"""{data_date} {data_time}""", '%Y-%m-%d %H:%M:%S')
+                    self.lines.datetime[0] = date2num(local_time)
+                    return True
+                else:
+                    print('error:', data)
+            else:
+                print('subscription failed', err_message)
 
 
 class OnTickClass(TickerHandlerBase):

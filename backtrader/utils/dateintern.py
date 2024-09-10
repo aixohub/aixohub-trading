@@ -27,7 +27,6 @@ import time as _time
 
 from .py3 import string_types
 
-
 ZERO = datetime.timedelta(0)
 
 STDOFFSET = datetime.timedelta(seconds=-_time.timezone)
@@ -53,19 +52,11 @@ def tzparse(tz):
     if tz is None or not tzstr:
         return Localizer(tz)
 
-    try:
-        import pytz  # keep the import very local
-    except ImportError:
-        return Localizer(tz)    # nothing can be done
-
     tzs = tz
     if tzs == 'CST':  # usual alias
         tzs = 'CST6CDT'
 
-    try:
-        tz = pytz.timezone(tzs)
-    except pytz.UnknownTimeZoneError:
-        return Localizer(tz)    # nothing can be done
+    tz = datetime.timezone(tzs)
 
     return tz
 
@@ -135,7 +126,6 @@ class _LocalTimezone(datetime.tzinfo):
 
 UTC = _UTC()
 TZLocal = _LocalTimezone()
-
 
 HOURS_PER_DAY = 24.0
 MINUTES_PER_HOUR = 60.0

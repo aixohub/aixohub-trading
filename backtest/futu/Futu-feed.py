@@ -32,28 +32,46 @@ from backtrader.feeds import FutuData
 class TestStrategy(bt.Strategy):
     params = dict(
         smaperiod=3,
-        short_period=3,
-        long_period=10,
+        short_period=5,
+        long_period=30,
         stop_loss=0.02,
+        period=16,
+        long_ravg=25, short_ravg=12,
+        max_position=10, spike_window=4,
+        cls=0.5, csr=-0.1, clr=-0.3,
     )
 
     def __init__(self):
-        self.sma = bt.indicators.MovAv.SMA(self.data.close, period=self.p.smaperiod)
-        self.short_ma = bt.indicators.MovAv.SMA(
-            self.data.close, period=self.p.short_period
-        )
-        self.long_ma = bt.indicators.MovAv.SMA(
-            self.data.close, period=self.p.long_period
-        )
-        self.crossup = bt.ind.CrossUp(self.long_ma, self.short_ma)
+        self.rsi = bt.ind.RSI_Safe(self.data.close, period=self.p.period)
+        self.long_RAVG = bt.indicators.SMA(self.data.close,
+                                           period=self.p.long_ravg, plotname='Long Returns Avg')
+        self.short_RAVG = bt.indicators.SMA(self.data.close,
+                                            period=self.p.short_ravg, plotname='Short Returns Avg')
+
+        # Long and Short Cross signal
+        self.ls_cross = bt.indicators.CrossOver(self.long_RAVG, self.short_RAVG, plotname='LS crossover')
+        self.ls_cross_SMA = bt.indicators.SMA(self.ls_cross,
+                                              period=self.p.spike_window, plotname='LS_Spike')
+
+        # Short and Close Cross signal
+        self.sr_cross = bt.indicators.CrossOver(self.short_RAVG, self.data.close, plotname='SR crossover')
+        self.sr_cross_SMA = bt.indicators.SMA(self.sr_cross,
+                                              period=self.p.spike_window, plotname='SR_Spike')
+
+        # Long and Close Cross signal
+        self.lr_cross = bt.indicators.CrossOver(self.long_RAVG, self.data.close, plotname='LR crossover')
+        self.lr_cross_SMA = bt.indicators.SMA(self.lr_cross,
+                                              period=self.p.spike_window, plotname='LR_Spike')
 
         print('--------------------------------------------------')
         print('TestStrategy Created')
         print('--------------------------------------------------')
 
     def next(self):
+        signal = self.p.cls * self.ls_cross + self.p.clr * self.lr_cross + self.p.csr * self.sr_cross
+
         print(
-            f''' code: {self.data.code} datetime: {self.datas[0].datetime.datetime(0)} sma: {self.sma[0]} long_ma: {self.long_ma[0]} crossup: {self.crossup[0]} open: {self.data.open[0]}  Close: {self.data.close[0]}  ''')
+            f''' code: {self.data.code} datetime: {self.datas[0].datetime.datetime(0)} rsi: {signal} turnover: {self.data.turnover[0]} volume: {self.data.volume[0]}  Close: {self.data.close[0]}  ''')
 
         # if self.data.close > self.sma:
         #     print(f"""buy  sma {self.sma}  close :{self.data.close}""")
@@ -63,11 +81,13 @@ class TestStrategy(bt.Strategy):
 
 def run(args=None):
     cerebro = bt.Cerebro()
-    code = get_option_chain('US.NVDA')
-    # code = 'HK.03690'
+    # code = get_option_chain('US.NVDA')
+    code = 'HK.03690'
     # 使用自定义数据源
     data = FutuData(symbol=code, fromdate='2024-09-01', todate='2024-09-30')
+    # cerebro.resampledata(data, timeframe=bt.TimeFrame.Minutes, compression=1)
     cerebro.adddata(data)
+
 
     cerebro.addstrategy(TestStrategy)
     cerebro.run()
