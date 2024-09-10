@@ -2,7 +2,7 @@
 # -*- coding: utf-8; py-indent-offset:4 -*-
 ###############################################################################
 #
-# Copyright (C) 2015-2023 Daniel Rodriguez
+# Copyright (C) 2015-2024 Daniel Rodriguez
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,23 +21,32 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
+import bisect
+# import functools
 import collections
-from copy import copy
-from datetime import date, datetime, timedelta
-import inspect
 import itertools
 import random
 import threading
 import time
+from copy import copy
+from datetime import datetime, timedelta
 
-from ibapi import Contract
-import  ibapi
 from backtrader import TimeFrame, Position
 from backtrader.metabase import MetaParams
-from backtrader.utils.py3 import bytes, bstr, queue, with_metaclass, long
 from backtrader.utils import AutoDict, UTC
+from backtrader.utils.py3 import bytes, bstr, queue, with_metaclass, long
 
 bytes = bstr  # py2/3 need for ibpy
+
+from ibapi.client import EClient
+from ibapi.wrapper import EWrapper
+from ibapi.contract import Contract
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+ENABLE_DEBUG = True
 
 
 def _ts2dt(tstamp=None):
@@ -50,6 +59,54 @@ def _ts2dt(tstamp=None):
     return datetime.utcfromtimestamp(sec).replace(microsecond=usec)
 
 
+class ErrorMsg(object):
+    def __init__(self, reqId, errorCode, errorString, advancedOrderRejectJson):
+        self.vars = vars()
+        del self.vars['self']
+        self.reqId = reqId
+        self.errorCode = errorCode
+        self.errorString = errorString
+        self.advancedOrderRejectJson = advancedOrderRejectJson
+
+    def __str__(self):
+        return f'{self.vars}'
+
+
+class OpenOrderMsg(object):
+    def __init__(self, orderId, contract, order, orderState):
+        self.vars = vars()
+        del self.vars['self']
+        self.orderId = orderId
+        self.contract = contract
+        self.order = order
+        self.orderState = orderState
+
+    def __str__(self):
+        return f'{self.vars}'
+
+
+class OrderStatusMsg(object):
+    def __init__(self, orderId, status, filled,
+                 remaining, avgFillPrice, permId,
+                 parentId, lastFillPrice, clientId,
+                 whyHeld, mktCapPrice):
+        self.vars = vars()
+        self.orderId = orderId
+        self.status = status
+        self.filled = filled
+        self.remaining = remaining
+        self.avgFillPrice = avgFillPrice
+        self.permId = permId
+        self.parentId = parentId
+        self.lastFillPrice = lastFillPrice
+        self.clientId = clientId
+        self.whyHeld = whyHeld
+        self.mktCapPrice = mktCapPrice
+
+    def __str__(self):
+        return f'{self.vars}'
+
+
 class RTVolume(object):
     '''Parses a tickString tickType 48 (RTVolume) event from the IB API into its
     constituent fields
@@ -58,14 +115,15 @@ class RTVolume(object):
     '''
     _fields = [
         ('price', float),
-        ('size', int),
+        ('size', float),
         ('datetime', _ts2dt),
-        ('volume', int),
+        ('volume', float),
         ('vwap', float),
         ('single', bool)
     ]
 
     def __init__(self, rtvol='', price=None, tmoffset=None):
+        self.vars = vars()
         # Use a provided string or simulate a list of empty tokens
         tokens = iter(rtvol.split(';'))
 
@@ -80,9 +138,180 @@ class RTVolume(object):
         if tmoffset is not None:
             self.datetime += tmoffset
 
+    def __str__(self):
+        return f'{self.vars}'
+
+
+class RTPrice(object):
+    '''Set price from a tickPrice
+    '''
+
+    def __init__(self, price, tmoffset=None):
+        self.vars = vars()
+        # No size for tickPrice
+        self.size = None
+
+        # Set the price
+        self.price = price
+
+        # Set price to when we received it
+        self.datetime = datetime.now()
+
+        if tmoffset is not None:
+            self.datetime += tmoffset
+
+    def __str__(self):
+        return f'{self.vars}'
+
+
+class RTSize(object):
+    '''Set size from a tickSize
+    '''
+
+    def __init__(self, size, tmoffset=None):
+        self.vars = vars()
+        # No size for tickPrice
+        self.price = None
+
+        # Set the size
+        self.size = size
+
+        # Set price to when we received it
+        self.datetime = datetime.now()
+
+        if tmoffset is not None:
+            self.datetime += tmoffset
+
+    def __str__(self):
+        return f'{self.vars}'
+
+
+class RTBar(object):
+    '''Set realtimeBar object
+    '''
+
+    def __init__(self, reqId, time, open_, high, low, close, volume, wap, count):
+        self.vars = vars()
+        self.reqId = reqId
+        self.time = time
+        self.open = open_
+        self.high = high
+        self.low = low
+        self.close = close
+        self.volume = volume
+        self.wap = wap
+        self.count = count
+
+    def __str__(self):
+        return f'{self.vars}'
+
+
+class HistBar(object):
+    '''Set historicalBar object
+    '''
+
+    def __init__(self, reqId, bar):
+        self.vars = vars()
+        self.reqId = reqId
+        self.date = bar.date
+        self.open = bar.open
+        self.high = bar.high
+        self.low = bar.low
+        self.close = bar.close
+        self.volume = bar.volume
+        self.wap = bar.wap
+        self.count = bar.barCount
+
+    def __str__(self):
+        return f'{self.vars}'
+
+
+class HistTick(object):
+    '''Set historicalTick object: 'MIDPOINT', 'BID_ASK', 'TRADES'
+    '''
+
+    def __init__(self, tick, dataType):
+        self.vars = vars()
+        self.date = datetime.utcfromtimestamp(tick.time)
+        self.tickType = tick.tickType if hasattr(tick, 'tickType') else int(0)
+        self.dataType = dataType
+        if dataType == 'RT_TICK_MIDPOINT':
+            self.price = tick.price
+        elif dataType == 'RT_TICK_LAST':
+            self.price = tick.price
+            self.size = float(tick.size)
+            self.unreported = tick.tickAttribLast.unreported
+            self.pastlimit = tick.tickAttribLast.pastLimit
+        elif dataType == 'RT_TICK_BID_ASK':
+            self.bidPrice = tick.priceBid
+            self.askPrice = tick.priceAsk
+            self.bidSize = float(tick.sizeBid)
+            self.askSize = float(tick.sizeAsk)
+
+        # self.exchange = tick.exchange
+        # self.specialconditions = tick.tickAttribLast.specialConditions
+
+    def __str__(self):
+        return f'{self.vars}'
+
+
+class RTTickLast(object):
+    '''Set realtimeTick object: 'TRADES'
+    '''
+
+    def __init__(self, tickType, time, price, size, tickAtrribLast, exchange, specialConditions):
+        self.vars = vars()
+        self.dataType = "RT_TICK_LAST"
+        self.datetime = datetime.utcfromtimestamp(time)
+        # self.tickType = TickTypeEnum.to_str(tickType)
+        self.tickType = tickType
+        self.price = price
+        self.size = float(size)
+        self.pastlimit = tickAtrribLast.pastLimit
+        self.unreported = tickAtrribLast.unreported
+        # self.exchange = exchange
+        # self.specialConditions = specialConditions
+
+    def __str__(self):
+        return f'{self.vars}'
+
+
+class RTTickBidAsk(object):
+    '''Set realtimeTick object: 'MIDPOINT', 'BID_ASK', 'TRADES'
+    '''
+
+    def __init__(self, time, bidPrice, askPrice, bidSize, askSize, tickAttribBidAsk):
+        self.vars = vars()
+        self.dataType = "RT_TICK_BID_ASK"
+        self.datetime = datetime.utcfromtimestamp(time)
+        self.bidPrice = bidPrice
+        self.askPrice = askPrice
+        self.bidSize = float(bidSize)
+        self.askSize = float(askSize)
+        self.bidPastLow = tickAttribBidAsk.bidPastLow
+        self.askPastHigh = tickAttribBidAsk.askPastHigh
+
+    def __str__(self):
+        return f'{self.vars}'
+
+
+class RTTickMidPoint(object):
+    '''Set realtimeTick object: 'MIDPOINT'
+    '''
+
+    def __init__(self, time, midPoint):
+        self.vars = vars()
+        self.dataType = "RT_TICK_MIDPOINT"
+        self.datetime = datetime.utcfromtimestamp(time)
+        self.midPoint = midPoint
+
+    def __str__(self):
+        return f'{self.vars}'
+
 
 class MetaSingleton(MetaParams):
     '''Metaclass to make a metaclassed class a singleton'''
+
     def __init__(cls, name, bases, dct):
         super(MetaSingleton, cls).__init__(name, bases, dct)
         cls._singleton = None
@@ -95,10 +324,258 @@ class MetaSingleton(MetaParams):
         return cls._singleton
 
 
-# Decorator to mark methods to register with ib.opt
-def ibregister(f):
-    f._ibregister = True
-    return f
+def logibmsg(fn):
+    def logmsg_decorator(self, *args, **kwargs):
+        try:
+            if self._debug:
+                args_repr = [repr(a) for a in args]
+                kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
+                signature = ", ".join(args_repr + kwargs_repr)
+                logger.debug(f"Calling {fn.__name__}({signature})")
+                print(f"Calling {fn.__name__}({signature})")
+            return fn(self, *args, **kwargs)
+        except Exception as e:
+            logger.exception(f"Exception raised in {fn.__name__}. exception: {str(e)}")
+            raise e
+
+    return logmsg_decorator
+
+
+class IBApi(EWrapper, EClient):
+    def __init__(self, cb, _debug):
+        EClient.__init__(self, self)
+        EWrapper.__init__(self)
+        self.cb = cb
+        self._debug = _debug
+
+    @logibmsg
+    def currentTime(self, time):
+        """ Server's current time. This method will receive IB server's system
+        time resulting after the invokation of reqCurrentTime. """
+        self.cb.currentTime(time)
+
+    @logibmsg
+    def updateAccountTime(self, timeStamp):
+        logger.debug(f"timeStamp: {timeStamp}")
+
+    @logibmsg
+    def nextValidId(self, orderId):
+        """ Receives next valid order id."""
+        logger.debug(f"nextValidId: {orderId}")
+        self.cb.nextValidId(orderId)
+
+    @logibmsg
+    def connectAck(self):
+        """ callback signifying completion of successful connection """
+        self.cb.connectAck()
+
+    @logibmsg
+    def connectionClosed(self):
+        """This function is called when TWS closes the sockets
+        connection with the ActiveX control, or when TWS is shut down."""
+        logger.debug(f"connectionClosed")
+        self.cb.connectionClosed()
+
+    @logibmsg
+    def managedAccounts(self, accountsList):
+        """Receives a comma-separated string with the managed account ids."""
+        self.cb.managedAccounts(accountsList)
+
+    @logibmsg
+    def accountDownloadEnd(self, accountName):
+        """This is called after a batch updateAccountValue() and
+        updatePortfolio() is sent."""
+        self.cb.accountDownloadEnd(accountName)
+
+    @logibmsg
+    def updateAccountValue(self, key, val, currency, accountName):
+        """ This function is called only when ReqAccountUpdates on
+        EEClientSocket object has been called. """
+        logger.debug(f"{key}, {val}, {currency}, {accountName}")
+        self.cb.updateAccountValue(key, val, currency, accountName)
+
+    @logibmsg
+    def updatePortfolio(self, contract, position,
+                        marketPrice, marketValue,
+                        averageCost, unrealizedPNL,
+                        realizedPNL, accountName):
+        """This function is called only when reqAccountUpdates on
+        EEClientSocket object has been called."""
+        self.cb.updatePortfolio(contract, position,
+                                marketPrice, marketValue,
+                                averageCost, unrealizedPNL,
+                                realizedPNL, accountName)
+
+    @logibmsg
+    def contractDetails(self, reqId, contractDetails):
+        """Receives the full contract's definitions. This method will return all
+        contracts matching the requested via EEClientSocket::reqContractDetails.
+        For example, one can obtain the whole option chain with it."""
+        self.cb.contractDetails(reqId, contractDetails)
+
+    @logibmsg
+    def contractDetailsEnd(self, reqId):
+        """This function is called once all contract details for a given
+        request are received. This helps to define the end of an option
+        chain."""
+        self.cb.contractDetailsEnd(reqId)
+
+    @logibmsg
+    def openOrder(self, orderId, contract, order, orderState):
+        """This function is called to feed in open orders.
+
+        orderID: OrderId - The order ID assigned by TWS. Use to cancel or
+            update TWS order.
+        contract: Contract - The Contract class attributes describe the contract.
+        order: Order - The Order class gives the details of the open order.
+        orderState: OrderState - The orderState class includes attributes Used
+            for both pre and post trade margin and commission data."""
+        self.cb.openOrder(OpenOrderMsg(orderId, contract, order, orderState))
+
+    @logibmsg
+    def openOrderEnd(self):
+        """This is called at the end of a given request for open orders."""
+        logger.debug(f"openOrderEnd")
+        self.cb.openOrderEnd()
+
+    @logibmsg
+    def orderStatus(self, orderId, status, filled,
+                    remaining, avgFillPrice, permId,
+                    parentId, lastFillPrice, clientId,
+                    whyHeld, mktCapPrice):
+        """This event is called whenever the status of an order changes. It is
+        also fired after reconnecting to TWS if the client has any open orders.
+
+        orderId: OrderId - The order ID that was specified previously in the
+            call to placeOrder()
+        status:str - The order status. Possible values include:
+            PendingSubmit - indicates that you have transmitted the order, but have not  yet received confirmation that it has been accepted by the order destination. NOTE: This order status is not sent by TWS and should be explicitly set by the API developer when an order is submitted.
+            PendingCancel - indicates that you have sent a request to cancel the order but have not yet received cancel confirmation from the order destination. At this point, your order is not confirmed canceled. You may still receive an execution while your cancellation request is pending. NOTE: This order status is not sent by TWS and should be explicitly set by the API developer when an order is canceled.
+            PreSubmitted - indicates that a simulated order type has been accepted by the IB system and that this order has yet to be elected. The order is held in the IB system until the election criteria are met. At that time the order is transmitted to the order destination as specified.
+            Submitted - indicates that your order has been accepted at the order destination and is working.
+            Cancelled - indicates that the balance of your order has been confirmed canceled by the IB system. This could occur unexpectedly when IB or the destination has rejected your order.
+            Filled - indicates that the order has been completely filled.
+            Inactive - indicates that the order has been accepted by the system (simulated orders) or an exchange (native orders) but that currently the order is inactive due to system, exchange or other issues.
+        filled:int - Specifies the number of shares that have been executed.
+            For more information about partial fills, see Order Status for Partial Fills.
+        remaining:int -   Specifies the number of shares still outstanding.
+        avgFillPrice:float - The average price of the shares that have been executed. This parameter is valid only if the filled parameter value is greater than zero. Otherwise, the price parameter will be zero.
+        permId:int -  The TWS id used to identify orders. Remains the same over TWS sessions.
+        parentId:int - The order ID of the parent order, used for bracket and auto trailing stop orders.
+        lastFilledPrice:float - The last price of the shares that have been executed. This parameter is valid only if the filled parameter value is greater than zero. Otherwise, the price parameter will be zero.
+        clientId:int - The ID of the client (or TWS) that placed the order. Note that TWS orders have a fixed clientId and orderId of 0 that distinguishes them from API orders.
+        whyHeld:str - This field is used to identify an order held when TWS is trying to locate shares for a short sell. The value used to indicate this is 'locate'.
+
+        """
+        self.cb.orderStatus(OrderStatusMsg(orderId, status, filled,
+                                           remaining, avgFillPrice, permId,
+                                           parentId, lastFillPrice, clientId,
+                                           whyHeld, mktCapPrice))
+
+    @logibmsg
+    def commissionReport(self, commissionReport):
+        """The commissionReport() callback is triggered as follows:
+        - immediately after a trade execution
+        - by calling reqExecutions()."""
+        self.cb.commissionReport(commissionReport)
+
+    @logibmsg
+    def error(self, reqId, errorCode, errorString, advancedOrderRejectJson=""):
+        self.cb.error(ErrorMsg(reqId, errorCode, errorString, advancedOrderRejectJson))
+
+    @logibmsg
+    def position(self, account, contract, pos, avgCost):
+        """This event returns real-time positions for all accounts in
+        response to the reqPositions() method."""
+        self.cb.position(account, contract, pos, avgCost)
+
+    @logibmsg
+    def positionEnd(self):
+        """This is called once all position data for a given request are
+        received and functions as an end marker for the position() data. """
+        self.cb.positionEnd()
+
+    @logibmsg
+    def tickPrice(self, reqId, tickType, price, attrib):
+        """Market data tick price callback. Handles all price related ticks."""
+        self.cb.tickPrice(reqId, tickType, price, attrib)
+
+    @logibmsg
+    def tickSize(self, reqId, tickType, size):
+        """Market data tick size callback. Handles all size-related ticks."""
+        self.cb.tickSize(reqId, tickType, size)
+
+    @logibmsg
+    def tickGeneric(self, reqId, tickType, value):
+        self.cb.tickGeneric(reqId, tickType, value)
+
+    @logibmsg
+    def realtimeBar(self, reqId, time, open_, high, low, close, volume, wap, count):
+        self.cb.realtimeBar(RTBar(reqId, time, open_, high, low, close, float(volume), wap, count))
+
+    @logibmsg
+    def historicalData(self, reqId, bar):
+        self.cb.historicalData(HistBar(reqId, bar))
+
+    @logibmsg
+    def historicalDataUpdate(self, reqId, bar):
+        '''Not implemented'''
+        pass
+
+    @logibmsg
+    def historicalDataEnd(self, reqId, start, end):
+        """ Marks the ending of the historical bars reception. """
+        self.cb.historicalDataEnd(reqId, start, end)
+
+    @logibmsg
+    def execDetails(self, reqId, contract, execution):
+        """This event is fired when the reqExecutions() functions is
+        invoked, or when an order is filled.  """
+        self.cb.execDetails(reqId, contract, execution)
+
+    @logibmsg
+    def execDetailsEnd(self, reqId):
+        """This function is called once all executions have been sent to
+        a client in response to reqExecutions()."""
+        pass
+
+    @logibmsg
+    def historicalTicks(self, reqId, ticks, done):
+        """For whatToShow=MIDPOINT
+        """
+        for tick in ticks:
+            self.cb.historicalTicks(reqId, HistTick(tick, 'RT_TICK_MIDPOINT'))
+
+    @logibmsg
+    def historicalTicksBidAsk(self, reqId, ticks, done):
+        """returns historical tick data when whatToShow=BID_ASK"""
+        for tick in ticks:
+            self.cb.historicalTicks(reqId, HistTick(tick, 'RT_TICK_BID_ASK'))
+
+    @logibmsg
+    def historicalTicksLast(self, reqId, ticks, done):
+        """returns tick-by-tick data for tickType = "Last" or "AllLast" """
+        for tick in ticks:
+            self.cb.historicalTicks(reqId, HistTick(tick, 'RT_TICK_LAST'))
+
+    @logibmsg
+    def tickByTickAllLast(self, reqId, tickType, time, price, size, tickAtrribLast, exchange, specialConditions):
+        """returns tick-by-tick data for tickType = "Last" or "AllLast" """
+        self.cb.tickByTickAllLast(reqId, tickType, time, price, size, tickAtrribLast, exchange, specialConditions)
+
+    @logibmsg
+    def tickByTickBidAsk(self, reqId, time, bidPrice, askPrice, bidSize, askSize, tickAttribBidAsk):
+        """returns tick-by-tick data for tickType = "BidAsk" """
+        self.cb.tickByTickBidAsk(reqId, time, bidPrice, askPrice, bidSize, askSize, tickAttribBidAsk)
+
+    @logibmsg
+    def tickByTickMidPoint(self, reqId, time, midPoint):
+        """returns tick-by-tick data for tickType = "MidPoint" """
+        self.cb.tickByTickBidAsk(reqId, time, midPoint)
+
+    @logibmsg
+    def tickString(self, reqId, tickType, value):
+        self.cb.tickString(reqId, tickType, value)
 
 
 class IBStore(with_metaclass(MetaSingleton, object)):
@@ -131,7 +608,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
       - ``_debug`` (default: ``False``)
 
-        Print all messages received from TWS to standard output
+        Print all messages received from TWS as info output
 
       - ``reconnect`` (default: ``3``)
 
@@ -176,6 +653,11 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         ('host', '127.0.0.1'),
         ('port', 7496),
         ('clientId', None),  # None generates a random clientid 1 -> 2^16
+        ('broker_host', ''),
+        ('broker_request_port', 12345),
+        ('broker_subscribe_port', 12345),
+        ('broker_user_name', ''),
+        ('broker_password', ''),
         ('notifyall', False),
         ('_debug', False),
         ('reconnect', 3),  # -1 forever, 0 No, > 0 number of retries
@@ -202,6 +684,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         self._lock_accupd = threading.Lock()  # sync account updates
         self._lock_pos = threading.Lock()  # sync account updates
         self._lock_notif = threading.Lock()  # sync access to notif queue
+        self._updacclock = threading.Lock()  # sync account updates
 
         # Account list received
         self._event_managed_accounts = threading.Event()
@@ -250,22 +733,15 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         else:
             self.clientId = self.p.clientId
 
+        self._debug = self.p._debug
         # ibpy connection object
-        self.conn = ibapi.ibConnection(
-            host=self.p.host, port=self.p.port, clientId=self.clientId)
-
-        # register a printall method if requested
-        if self.p._debug or self.p.notifyall:
-            self.conn.registerAll(self.watcher)
-
-        # Register decorated methods with the conn
-        methods = inspect.getmembers(self, inspect.ismethod)
-        for name, method in methods:
-            if not getattr(method, '_ibregister', False):
-                continue
-
-            message = getattr(ibapi.message, name)
-            self.conn.register(method, message)
+        try:
+            self.conn = IBApi(self, self._debug)
+            self.conn.connect(self.p.host, self.p.port, self.clientId)
+            self.apiThread = threading.Thread(target=self.conn.run, daemon=True)
+            self.apiThread.start()
+        except Exception as e:
+            print(f"TWS Failed to connect: {e}")
 
         # This utility key function transforms a barsize into a:
         #   (Timeframe, Compression) tuple which can be sorted
@@ -297,7 +773,13 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             self.revdur[barsize].sort(key=key2fn)
 
     def start(self, data=None, broker=None):
+        logger.info(f"START data: {data} broker: {broker}")
         self.reconnect(fromstart=True)  # reconnect should be an invariant
+
+        # Datas require some processing to kickstart data reception
+        if data is None and broker is None:
+            self.cash = None
+            return
 
         # Datas require some processing to kickstart data reception
         if data is not None:
@@ -316,23 +798,13 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         try:
             self.conn.disconnect()  # disconnect should be an invariant
         except AttributeError:
-            pass    # conn may have never been connected and lack "disconnect"
+            pass  # conn may have never been connected and lack "disconnect"
 
         # Unblock any calls set on these events
         self._event_managed_accounts.set()
         self._event_accdownload.set()
 
-    def logmsg(self, *args):
-        # for logging purposes
-        if self.p._debug:
-            print(*args)
-
-    def watcher(self, msg):
-        # will be registered to see all messages if debug is requested
-        self.logmsg(str(msg))
-        if self.p.notifyall:
-            self.notifs.put((msg, tuple(msg.values()), dict(msg.items())))
-
+    # @logibmsg
     def connected(self):
         # The isConnected method is available through __getattr__ indirections
         # and may not be present, which indicates that no connection has been
@@ -345,6 +817,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
         return False  # non-connected (including non-initialized)
 
+    # @logibmsg
     def reconnect(self, fromstart=False, resub=False):
         # This method must be an invariant in that it can be called several
         # times from the same source and must be consistent. An exampler would
@@ -380,15 +853,22 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             retries += firstconnect
 
         while retries < 0 or retries:
+            logger.debug(f"Retries: {retries}")
             if not firstconnect:
+                logger.debug(f"Reconnect in {self.p.timeout} secs")
                 time.sleep(self.p.timeout)
 
             firstconnect = False
 
-            if self.conn.connect():
-                if not fromstart or resub:
-                    self.startdatas()
-                return True  # connection successful
+            try:
+                logger.debug("Connect (host={self.p.host}, port={self.p.port}, clientId={self.clientId})")
+                if self.conn.connect(self.p.host, self.p.port, self.clientId):
+                    if not fromstart or resub:
+                        self.startdatas()
+                    return True  # connection successful
+            except Exception as e:
+                logger.exception(f"Failed to Connect {e}")
+                return False
 
             if retries > 0:
                 retries -= 1
@@ -407,8 +887,10 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         for t in ts:
             t.join()
 
+    @logibmsg
     def stopdatas(self):
         # stop subs and force datas out of the loop (in LIFO order)
+        logger.debug(f"Stopping datas")
         qs = list(self.qs.values())
         ts = list()
         for data in self.datas:
@@ -436,7 +918,6 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
         return notifs
 
-    @ibregister
     def error(self, msg):
         # 100-199 Order/Data/Historical related
         # 200-203 tickerId and Order Related
@@ -451,8 +932,17 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         # All errors are logged to the environment (cerebro), because many
         # errors in Interactive Brokers are actually informational and many may
         # actually be of interest to the user
+        if msg.reqId > 0:
+            logger.error(f"{msg}")
+            print(f"Error: {msg}")
+        else:
+            logger.debug(f"{msg}")
+
+        if msg.reqId == -1 and msg.errorCode == 502:
+            print(msg.errorString)
+
         if not self.p.notifyall:
-            self.notifs.put((msg, tuple(msg.values()), dict(msg.items())))
+            self.notifs.put((msg, tuple(vars(msg).values()), dict(vars(msg).items())))
 
         # Manage those events which have to do with connection
         if msg.errorCode is None:
@@ -462,28 +952,30 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             # cdetails 200 security not found, notify over right queue
             # cdetails 203 security not allowed for acct
             try:
-                q = self.qs[msg.id]
+                q = self.qs[msg.reqId]
             except KeyError:
                 pass  # should not happend but it can
             else:
+                logger.warn(f"Cancel data queue for {msg.reqId}")
                 self.cancelQueue(q, True)
 
         elif msg.errorCode in [354, 420]:
             # 354 no subscription, 420 no real-time bar for contract
             # the calling data to let the data know ... it cannot resub
             try:
-                q = self.qs[msg.id]
+                q = self.qs[msg.reqId]
             except KeyError:
                 pass  # should not happend but it can
             else:
                 q.put(-msg.errorCode)
+                logger.warn(f"Cancel data queue for {msg.reqId}")
                 self.cancelQueue(q)
 
         elif msg.errorCode == 10225:
             # 10225-Bust event occurred, current subscription is deactivated.
             # Please resubscribe real-time bars immediately.
             try:
-                q = self.qs[msg.id]
+                q = self.qs[msg.reqId]
             except KeyError:
                 pass  # should not happend but it can
             else:
@@ -501,7 +993,12 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
         elif msg.errorCode == 504:  # Not Connected for data op
             # Once for each data
-            pass  # don't need to manage it
+            # pass  # don't need to manage it
+
+            # Connection lost - Notify ... datas will wait on the queue
+            # with no messages arriving
+            for q in self.ts:  # key: queue -> ticker
+                q.put(-msg.errorCode)
 
         elif msg.errorCode == 1300:
             # TWS has been closed. The port for a new connection is there
@@ -528,38 +1025,44 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         elif msg.errorCode < 500:
             # Given the myriad of errorCodes, start by assuming is an order
             # error and if not, the checks there will let it go
-            if msg.id < self.REQIDBASE:
+            if msg.reqId < self.REQIDBASE:
                 if self.broker is not None:
                     self.broker.push_ordererror(msg)
             else:
                 # Cancel the queue if a "data" reqId error is given: sanity
-                q = self.qs[msg.id]
+                q = self.qs[msg.reqId]
+                logger.warn(f"Cancel data queue for {msg.reqId}")
                 self.cancelQueue(q, True)
 
-    @ibregister
-    def connectionClosed(self, msg):
+    def connectionClosed(self):
         # Sometmes this comes without 1300/502 or any other and will not be
         # seen in error hence the need to manage the situation independently
-        self.conn.disconnect()
-        self.stopdatas()
+        if self.connected():
+            self.conn.disconnect()
+            self.stopdatas()
 
-    @ibregister
-    def managedAccounts(self, msg):
+    def updateAccountTime(self, timeStamp):
+        logger.debug(f"timeStamp: {timeStamp}")
+
+    def connectAck(self):
+        logger.debug(f"connectAck")
+
+    def managedAccounts(self, accountsList):
         # 1st message in the stream
-        self.managed_accounts = msg.accountsList.split(',')
+        self.managed_accounts = accountsList.split(',')
         self._event_managed_accounts.set()
 
         # Request time to avoid synchronization issues
         self.reqCurrentTime()
 
+    @logibmsg
     def reqCurrentTime(self):
         self.conn.reqCurrentTime()
 
-    @ibregister
-    def currentTime(self, msg):
+    def currentTime(self, time):
         if not self.p.timeoffset:  # only if requested ... apply timeoffset
             return
-        curtime = datetime.fromtimestamp(float(msg.time))
+        curtime = datetime.fromtimestamp(float(time))
         with self._lock_tmoffset:
             self.tmoffset = curtime - datetime.now()
 
@@ -573,10 +1076,9 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         # Get the next ticker using next on the itertools.count
         return next(self._tickerId)
 
-    @ibregister
-    def nextValidId(self, msg):
+    def nextValidId(self, orderId):
         # Create a counter from the TWS notified value to apply to orders
-        self.orderid = itertools.count(msg.orderId)
+        self.orderid = itertools.count(orderId)
 
     def nextOrderId(self):
         # Get the next ticker using next on the itertools.count made with the
@@ -650,16 +1152,16 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         self.conn.reqContractDetails(tickerId, contract)
         return q
 
-    @ibregister
-    def contractDetailsEnd(self, msg):
+    def contractDetailsEnd(self, reqId):
         '''Signal end of contractdetails'''
-        self.cancelQueue(self.qs[msg.reqId], True)
+        logger.debug(f"Cancel data queue tickerId: {reqId} Q: {self.qs[reqId]}")
+        self.cancelQueue(self.qs[reqId], True)
 
-    @ibregister
-    def contractDetails(self, msg):
+    def contractDetails(self, reqId, contractDetails):
         '''Receive answer and pass it to the queue'''
-        self.qs[msg.reqId].put(msg)
+        self.qs[reqId].put(contractDetails)
 
+    @logibmsg
     def reqHistoricalDataEx(self, contract, enddate, begindate,
                             timeframe, compression,
                             what=None, useRTH=False, tz='', sessionend=None,
@@ -709,8 +1211,10 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         # Get or reuse a queue
         if tickerId is None:
             tickerId, q = self.getTickerQueue()
+            logger.debug(f"Get tickerId: {tickerId} Q: {q}")
         else:
             tickerId, q = self.reuseQueue(tickerId)  # reuse q for old tickerId
+            logger.debug(f"Reuse tickerId: {tickerId} Q: {q}")
 
         # Get the best possible duration to reduce number of requests
         duration = None
@@ -735,12 +1239,12 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         self.histsend[tickerId] = sessionend
         self.histtz[tickerId] = tz
 
-        if contract.m_secType in ['CASH', 'CFD']:
+        if contract.secType in ['CASH', 'CFD']:
             self.iscash[tickerId] = 1  # msg.field code
             if not what:
                 what = 'BID'  # default for cash unless otherwise specified
 
-        elif contract.m_secType in ['IND'] and self.p.indcash:
+        elif contract.secType in ['IND'] and self.p.indcash:
             self.iscash[tickerId] = 4  # msg.field code
 
         what = what or 'TRADES'
@@ -748,12 +1252,15 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         self.conn.reqHistoricalData(
             tickerId,
             contract,
-            bytes(intdate.strftime('%Y%m%d %H:%M:%S') + ' GMT'),
+            # bytes(intdate.strftime('%Y%m%d %H:%M:%S') + ' GMT'),
+            bytes(intdate.strftime('%Y%m%d-%H:%M:%S')),
             bytes(duration),
             bytes(barsize),
             bytes(what),
             int(useRTH),
-            2)  # dateformat 1 for string, 2 for unix time in seconds
+            2,  # dateformat 1 for string, 2 for unix time in seconds
+            False,
+            [])
 
         return q
 
@@ -764,7 +1271,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         # get a ticker/queue for identification/data delivery
         tickerId, q = self.getTickerQueue()
 
-        if contract.m_secType in ['CASH', 'CFD']:
+        if contract.secType in ['CASH', 'CFD']:
             self.iscash[tickerId] = True
             if not what:
                 what = 'BID'  # TRADES doesn't work
@@ -782,12 +1289,116 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         self.conn.reqHistoricalData(
             tickerId,
             contract,
-            bytes(enddate.strftime('%Y%m%d %H:%M:%S') + ' GMT'),
+            # bytes(enddate.strftime('%Y%m%d %H:%M:%S') + ' GMT'),
+            bytes(enddate.strftime('%Y%m%d-%H:%M:%S')),
             bytes(duration),
             bytes(barsize),
             bytes(what),
             int(useRTH),
-            2)
+            2,
+            False,
+            [])
+
+        return q
+
+    def reqHistoricalTicksEx(self, contract, enddate=None, begindate=None,
+                             what=None, useRTH=False, tz='',
+                             tickerId=None):
+        '''
+        Extension of the raw reqHistoricalData proxy, which takes two dates
+        rather than a duration, barsize and date
+
+        It uses the IB published valid duration/barsizes to make a mapping and
+        spread a historical request over several historical requests if needed
+        '''
+        # Keep a copy for error reporting purposes
+        kwargs = locals().copy()
+        kwargs.pop('self', None)  # remove self, no need to report it
+
+        if enddate and begindate:
+            err = ('Only fromdate OR enddate can be specified not both')
+            self.notifs.put((err, (), kwargs))
+            return self.getTickerQueue(start=True)
+
+        if enddate is None and begindate is None:
+            today = datetime.utcnow().date()
+            begindate = datetime(today.year, today.month, today.day)
+            # begindate = datetime.now()
+
+        logger.debug(f"begin: {begindate} end: {enddate}")
+
+        # Get or reuse a queue
+        if tickerId is None:
+            tickerId, q = self.getTickerQueue()
+            logger.debug(f"Get tickerId: {tickerId} Q: {q}")
+        else:
+            tickerId, q = self.reuseQueue(tickerId)  # reuse q for old tickerId
+            logger.debug(f"Reuse tickerId: {tickerId} Q: {q}")
+
+        if contract.secType in ['CASH', 'CFD']:
+            self.iscash[tickerId] = 1  # msg.field code
+            if not what:
+                what = 'BID'  # default for cash unless otherwise specified
+
+        elif contract.secType in ['IND'] and self.p.indcash:
+            self.iscash[tickerId] = 4  # msg.field code
+
+        what = what or 'TRADES'
+
+        self.conn.reqHistoricalTicks(
+            tickerId,
+            contract,
+            # bytes(begindate.strftime('%Y%m%d %H:%M:%S') + ' GMT') if begindate else '',
+            # bytes(enddate.strftime('%Y%m%d %H:%M:%S') + ' GMT') if enddate else '',
+            bytes(begindate.strftime('%Y%m%d-%H:%M:%S')) if begindate else '',
+            bytes(enddate.strftime('%Y%m%d-%H:%M:%S')) if enddate else '',
+            100,
+            bytes(what),
+            int(useRTH),
+            True,
+            [])
+
+        return q
+
+    def reqHistoricalTicks(self, contract, enddate, begindate,
+                           what=None, useRTH=False, tz=''):
+        '''Proxy to reqHistoricalTicks'''
+
+        # get a ticker/queue for identification/data delivery
+        tickerId, q = self.getTickerQueue()
+
+        if contract.secType in ['CASH', 'CFD']:
+            self.iscash[tickerId] = True
+            if not what:
+                what = 'BID'  # TRADES doesn't work
+            elif what == 'ASK':
+                self.iscash[tickerId] = 2
+        else:
+            what = what or 'TRADES'
+
+        if what == 'TRADES_ALL':
+            what = 'LastAll'
+        elif what == 'TRADES':
+            what = 'Last'
+        elif what == 'BID_ASK':
+            when = 'BidAsk'
+        elif what == 'MIDPOINT':
+            when = 'MidPoint'
+
+        self.conn.reqHistoricalTicks(
+            tickerId,
+            contract,
+            # bytes(begindate.strftime('%Y%m%d %H:%M:%S') + ' GMT') if begindate else '',
+            bytes(begindate.strftime('%Y%m%d-%H:%M:%S')) if begindate else '',
+            # bytes(enddate.strftime('%Y%m%d %H:%M:%S') + ' GMT'),
+            # bytes(enddate.strftime('%Y%m%d %H:%M:%S') + ' GMT') if enddate else '',
+            bytes(enddate.strftime('%Y%m%d-%H:%M:%S')) if enddate else '',
+            10,
+            bytes(what),
+            # int(useRTH),
+            1,
+            True,
+            [])
 
         return q
 
@@ -799,9 +1410,11 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         '''
         with self._lock_q:
             self.conn.cancelHistoricalData(self.ts[q])
+            logger.warn(f"Cancel data queue for {q}")
             self.cancelQueue(q, True)
 
-    def reqRealTimeBars(self, contract, useRTH=False, duration=5):
+    @logibmsg
+    def reqRealTimeBars(self, contract, useRTH=False, duration=5, what=None):
         '''Creates a request for (5 seconds) Real Time Bars
 
         Params:
@@ -815,13 +1428,17 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         # get a ticker/queue for identification/data delivery
         tickerId, q = self.getTickerQueue()
 
+        what = what or 'TRADES'
+
         # 20150929 - Only 5 secs supported for duration
         self.conn.reqRealTimeBars(
             tickerId,
             contract,
             duration,
-            bytes('TRADES'),
-            int(useRTH))
+            # bytes('TRADES'),
+            bytes(what),
+            useRTH,
+            [])
 
         return q
 
@@ -836,6 +1453,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             if tickerId is not None:
                 self.conn.cancelRealTimeBars(tickerId)
 
+            logger.debug(f"Cancel data queue for {tickerId}")
             self.cancelQueue(q, True)
 
     def reqMktData(self, contract, what=None):
@@ -851,7 +1469,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         tickerId, q = self.getTickerQueue()
         ticks = '233'  # request RTVOLUME tick delivered over tickString
 
-        if contract.m_secType in ['CASH', 'CFD']:
+        if contract.secType in ['CASH', 'CFD']:
             self.iscash[tickerId] = True
             ticks = ''  # cash markets do not get RTVOLUME
             if what == 'ASK':
@@ -859,7 +1477,28 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
         # q.put(None)  # to kickstart backfilling
         # Can request 233 also for cash ... nothing will arrive
-        self.conn.reqMktData(tickerId, contract, bytes(ticks), False)
+        self.conn.reqMktData(tickerId, contract, bytes(ticks), False, False, [])
+        return q
+
+    def reqTickByTickData(self, contract, what=None, ignoreSize=True):
+        '''
+        Tick-by-tick data corresponding to the data shown in the
+        TWS Time & Sales Window is available starting with TWS v969 and API v973.04.
+        '''
+
+        if what == 'TRADES':
+            what = 'Last'
+        elif what == 'TRADES_ALL':
+            what = 'AllLast'
+        elif what == 'BID_ASK':
+            what = 'BidAsk'
+        elif what == 'MIDPOINT':
+            what = 'MidPoint'
+        else:
+            what = 'Last'
+
+        tickerId, q = self.getTickerQueue()
+        self.conn.reqTickByTickData(tickerId, contract, what, 0, ignoreSize)
         return q
 
     def cancelMktData(self, q):
@@ -873,23 +1512,37 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             if tickerId is not None:
                 self.conn.cancelMktData(tickerId)
 
+            logger.debug(f"Cancel data queue for {tickerId}")
             self.cancelQueue(q, True)
 
-    @ibregister
-    def tickString(self, msg):
+    def cancelTickByTickData(self, q):
+        '''Cancels an existing MarketData subscription
+
+        Params:
+          - q: the Queue returned by reqTickByTickData
+        '''
+        with self._lock_q:
+            tickerId = self.ts.get(q, None)
+            if tickerId is not None:
+                self.conn.cancelTickByTickData(tickerId)
+
+            logger.debug(f"Cancel data queue for {tickerId}")
+            self.cancelQueue(q, True)
+
+    def tickString(self, reqId, tickType, value):
         # Receive and process a tickString message
-        if msg.tickType == 48:  # RTVolume
+        tickerId = reqId
+        if tickType == 48:  # RTVolume
             try:
-                rtvol = RTVolume(msg.value)
+                rtvol = RTVolume(value)
             except ValueError:  # price not in message ...
                 pass
             else:
                 # Don't need to adjust the time, because it is in "timestamp"
                 # form in the message
-                self.qs[msg.tickerId].put(rtvol)
+                self.qs[tickerId].put(rtvol)
 
-    @ibregister
-    def tickPrice(self, msg):
+    def tickPrice(self, reqId, tickType, price, attrib):
         '''Cash Markets have no notion of "last_price"/"last_size" and the
         tracking of the price is done (industry de-facto standard at least with
         the IB API) following the BID price
@@ -897,15 +1550,16 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         A RTVolume which will only contain a price is put into the client's
         queue to have a consistent cross-market interface
         '''
+
         # Used for "CASH" markets
         # The price field has been seen to be missing in some instances even if
         # "field" is 1
-        tickerId = msg.tickerId
+        tickerId = reqId
         fieldcode = self.iscash[tickerId]
         if fieldcode:
-            if msg.field == fieldcode:  # Expected cash field code
+            if tickType == fieldcode:  # Expected cash field code
                 try:
-                    if msg.price == -1.0:
+                    if price == -1.0:
                         # seems to indicate the stream is halted for example in
                         # between 23:00 - 23:15 CET for FOREX
                         return
@@ -913,14 +1567,42 @@ class IBStore(with_metaclass(MetaSingleton, object)):
                     pass
 
                 try:
-                    rtvol = RTVolume(price=msg.price, tmoffset=self.tmoffset)
+                    rtvol = RTVolume(price=price, tmoffset=self.tmoffset)
                     # print('rtvol with datetime:', rtvol.datetime)
                 except ValueError:  # price not in message ...
                     pass
                 else:
                     self.qs[tickerId].put(rtvol)
+        else:
+            # Non-cash
+            try:
+                if price == -1.0:
+                    # seems to indicate the stream is halted for example in
+                    # between 23:00 - 23:15 CET for FOREX
+                    return
+            except AttributeError:
+                pass
+            rtprice = RTPrice(price=price, tmoffset=self.tmoffset)
+            self.qs[tickerId].put(rtprice)
 
-    @ibregister
+    def tickSize(self, reqId, tickType, size):
+        tickerId = reqId
+        rtsize = RTSize(size=size, tmoffset=self.tmoffset)
+        self.qs[tickerId].put(rtsize)
+
+    def tickGeneric(self, reqId, tickType, value):
+        try:
+            if value == -1.0:
+                # seems to indicate the stream is halted for example in
+                # between 23:00 - 23:15 CET for FOREX
+                return
+        except AttributeError:
+            pass
+        tickerId = reqId
+        value = value  # if msg.value != 0.0 else (1.0 + random.random())
+        rtprice = RTPrice(price=value, tmoffset=self.tmoffset)
+        self.qs[tickerId].put(rtprice)
+
     def realtimeBar(self, msg):
         '''Receives x seconds Real Time Bars (at the time of writing only 5
         seconds are supported)
@@ -931,7 +1613,6 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         msg.time = datetime.utcfromtimestamp(float(msg.time))
         self.qs[msg.reqId].put(msg)
 
-    @ibregister
     def historicalData(self, msg):
         '''Receives the events of a historical data request'''
         # For multi-tiered downloads we'd need to rebind the queue to a new
@@ -939,42 +1620,68 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         # None, issue a new reqHistData with the new data and move formward
         tickerId = msg.reqId
         q = self.qs[tickerId]
-        if msg.date.startswith('finished-'):
-            self.histfmt.pop(tickerId, None)
-            self.histsend.pop(tickerId, None)
-            self.histtz.pop(tickerId, None)
-            kargs = self.histexreq.pop(tickerId, None)
-            if kargs is not None:
-                self.reqHistoricalDataEx(tickerId=tickerId, **kargs)
-                return
 
-            msg.date = None
-            self.cancelQueue(q)
-        else:
-            dtstr = msg.date  # Format when string req: YYYYMMDD[  HH:MM:SS]
-            if self.histfmt[tickerId]:
-                sessionend = self.histsend[tickerId]
-                dt = datetime.strptime(dtstr, '%Y%m%d')
-                dteos = datetime.combine(dt, sessionend)
-                tz = self.histtz[tickerId]
-                if tz:
-                    dteostz = tz.localize(dteos)
-                    dteosutc = dteostz.astimezone(UTC).replace(tzinfo=None)
-                    # When requesting for example daily bars, the current day
-                    # will be returned with the already happened data. If the
-                    # session end were added, the new ticks wouldn't make it
-                    # through, because they happen before the end of time
-                else:
-                    dteosutc = dteos
-
-                if dteosutc <= datetime.utcnow():
-                    dt = dteosutc
-
-                msg.date = dt
+        dtstr = msg.date  # Format when string req: YYYYMMDD[  HH:MM:SS]
+        if self.histfmt[tickerId]:
+            sessionend = self.histsend[tickerId]
+            dt = datetime.strptime(dtstr, '%Y%m%d')
+            dteos = datetime.combine(dt, sessionend)
+            tz = self.histtz[tickerId]
+            if tz:
+                dteostz = tz.localize(dteos)
+                dteosutc = dteostz.astimezone(UTC).replace(tzinfo=None)
+                # When requesting for example daily bars, the current day
+                # will be returned with the already happened data. If the
+                # session end were added, the new ticks wouldn't make it
+                # through, because they happen before the end of time
             else:
-                msg.date = datetime.utcfromtimestamp(long(dtstr))
+                dteosutc = dteos
+
+            if dteosutc <= datetime.utcnow():
+                dt = dteosutc
+
+            msg.date = dt
+        else:
+            msg.date = datetime.utcfromtimestamp(long(dtstr))
 
         q.put(msg)
+
+    def historicalDataEnd(self, reqId, start, end):
+        tickerId = reqId
+        self.histfmt.pop(tickerId, None)
+        self.histsend.pop(tickerId, None)
+        self.histtz.pop(tickerId, None)
+        kargs = self.histexreq.pop(tickerId, None)
+        if kargs is not None:
+            self.reqHistoricalDataEx(tickerId=tickerId, **kargs)
+            return
+
+        q = self.qs[tickerId]
+        self.cancelQueue(q)
+
+    def historicalTicks(self, reqId, tick):
+        tickerId = reqId
+        self.qs[tickerId].put(tick)
+
+    def historicalTicksEnd(self, reqId):
+        tickerId = reqId
+        q = self.qs[tickerId]
+        self.cancelTickByTickData(q)
+
+    def tickByTickBidAsk(self, reqId, time, bidPrice, askPrice, bidSize, askSize, tickAttribBidAsk):
+        tickerId = reqId
+        tick = RTTickBidAsk(time, bidPrice, askPrice, bidSize, askSize, tickAttribBidAsk)
+        self.qs[tickerId].put(tick)
+
+    def tickByTickAllLast(self, reqId, tickType, time, price, size, tickAtrribLast, exchange, specialConditions):
+        tickerId = reqId
+        tick = RTTickLast(tickType, time, price, size, tickAtrribLast, exchange, specialConditions)
+        self.qs[tickerId].put(tick)
+
+    def tickByTickMidPoint(self, reqId, time, midPoint):
+        tickerId = reqId
+        tick = RTTickMidPoint(time, time, midPoint)
+        self.qs[tickerId].put(tick)
 
     # The _durations are meant to calculate the needed historical data to
     # perform backfilling at the start of a connetion or a connection is lost.
@@ -1105,7 +1812,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         ('11 M', ('1 day', '1 W', '1 M')),
 
         # 1+ years
-        ('1 Y',  ('1 day', '1 W', '1 M')),
+        ('1 Y', ('1 day', '1 W', '1 M')),
     ])
 
     # Sizes allow for quick translation from bar sizes above to actual
@@ -1129,7 +1836,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         'Y': TimeFrame.Years,
     }
 
-    def getdurations(self,  timeframe, compression):
+    def getdurations(self, timeframe, compression):
         key = (timeframe, compression)
         if key not in self.revdur:
             return []
@@ -1207,7 +1914,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         else:
             checkdur = duration
 
-        sizes = self._durations[checkduration]
+        sizes = self._durations[checkdur]
         return duration, sizes
 
     def calcduration(self, dtbegin, dtend):
@@ -1259,7 +1966,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
         # Next: 1 -> 11 months (11 incl)
         months = (y2 * 12 + m2) - (y1 * 12 + m1) + (
-            (d2, H2, M2, S2, US2) > (d1, H1, M1, S1, US1))
+                (d2, H2, M2, S2, US2) > (d1, H1, M1, S1, US1))
         if months <= 1:  # months <= 11
             return '1 M'  # return '{} M'.format(months)
         elif months <= 11:
@@ -1272,22 +1979,30 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         return '1 Y'  # to keep the table clean
 
     def makecontract(self, symbol, sectype, exch, curr,
-                     expiry='', strike=0.0, right='', mult=1):
+                     expiry='', strike=0.0, right='', mult=1,
+                     primaryExch=None, localSymbol=None):
         '''returns a contract from the parameters without check'''
 
         contract = Contract()
-        contract.m_symbol = bytes(symbol)
-        contract.m_secType = bytes(sectype)
-        contract.m_exchange = bytes(exch)
+
+        if localSymbol:
+            contract.localSymbol = bytes(localSymbol)
+        else:
+            contract.symbol = bytes(symbol)
+
+        contract.secType = bytes(sectype)
+        contract.exchange = bytes(exch)
+        if primaryExch:
+            contract.primaryExchange = bytes(primaryExch)
         if curr:
-            contract.m_currency = bytes(curr)
+            contract.currency = bytes(curr)
         if sectype in ['FUT', 'OPT', 'FOP']:
-            contract.m_expiry = bytes(expiry)
+            contract.lastTradeDateOrContractMonth = bytes(expiry)
         if sectype in ['OPT', 'FOP']:
-            contract.m_strike = strike
-            contract.m_right = bytes(right)
+            contract.strike = strike
+            contract.right = bytes(right)
         if mult:
-            contract.m_multiplier = bytes(mult)
+            contract.multiplier = bytes(mult)
         return contract
 
     def cancelOrder(self, orderid):
@@ -1298,34 +2013,59 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         '''Proxy to placeOrder'''
         self.conn.placeOrder(orderid, contract, order)
 
-    @ibregister
     def openOrder(self, msg):
         '''Receive the event ``openOrder`` events'''
         self.broker.push_orderstate(msg)
 
-    @ibregister
-    def execDetails(self, msg):
-        '''Receive execDetails'''
-        self.broker.push_execution(msg.execution)
+    def openOrderEnd(self):
+        # TODO: Add event to manage order requests
+        logger.debug(f"openOrderEnd")
 
-    @ibregister
+    def execDetails(self, reqId, contract, execution):
+        '''Receive execDetails'''
+        execution.shares = float(execution.shares)
+        execution.cumQty = float(execution.cumQty)
+        self.broker.push_execution(execution)
+
     def orderStatus(self, msg):
         '''Receive the event ``orderStatus``'''
         self.broker.push_orderstatus(msg)
 
-    @ibregister
-    def commissionReport(self, msg):
+    def commissionReport(self, commissionReport):
         '''Receive the event commissionReport'''
-        self.broker.push_commissionreport(msg.commissionReport)
+        self.broker.push_commissionreport(commissionReport)
 
     def reqPositions(self):
         '''Proxy to reqPositions'''
         self.conn.reqPositions()
 
-    @ibregister
-    def position(self, msg):
+    def position(self, account, contract, pos, avgCost):
         '''Receive event positions'''
-        pass  # Not implemented yet
+        # Lock access to the position dicts. This is called in sub-thread and
+        # can kick in at any time
+        with self._lock_pos:
+            try:
+                if not self._event_accdownload.is_set():  # 1st event seen
+                    position = Position(float(pos), float(avgCost))
+                    logger.debug(f"POSITIONS INITIAL: {self.positions}")
+                    self.positions[contract.conId] = position
+                else:
+                    position = self.positions[contract.conId]
+                    logger.debug(f"POSITION UPDATE: {position}")
+                    if not position.fix(float(pos), avgCost):
+                        err = ('The current calculated position and '
+                               'the position reported by the broker do not match. '
+                               'Operation can continue, but the trades '
+                               'calculated in the strategy may be wrong')
+
+                        self.notifs.put((err, (), {}))
+
+                    # self.broker.push_portupdate()
+            except Exception as e:
+                logger.exception(f"Exception: {e}")
+
+    def positionEnd(self):
+        logger.debug(f"positionEnd")
 
     def reqAccountUpdates(self, subscribe=True, account=None):
         '''Proxy to reqAccountUpdates
@@ -1339,8 +2079,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
         self.conn.reqAccountUpdates(subscribe, bytes(account))
 
-    @ibregister
-    def accountDownloadEnd(self, msg):
+    def accountDownloadEnd(self, accountName):
         # Signals the end of an account update
         # the event indicates it's over. It's only false once, and can be used
         # to find out if it has at least been downloaded once
@@ -1351,56 +2090,65 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
                 self.port_update = False
 
-    @ibregister
-    def updatePortfolio(self, msg):
+    def updatePortfolio(self, contract, pos,
+                        marketPrice, marketValue,
+                        averageCost, unrealizedPNL,
+                        realizedPNL, accountName):
         # Lock access to the position dicts. This is called in sub-thread and
         # can kick in at any time
         with self._lock_pos:
-            if not self._event_accdownload.is_set():  # 1st event seen
-                position = Position(msg.position, msg.averageCost)
-                self.positions[msg.contract.m_conId] = position
-            else:
-                position = self.positions[msg.contract.m_conId]
-                if not position.fix(msg.position, msg.averageCost):
-                    err = ('The current calculated position and '
-                           'the position reported by the broker do not match. '
-                           'Operation can continue, but the trades '
-                           'calculated in the strategy may be wrong')
+            try:
+                if not self._event_accdownload.is_set():  # 1st event seen
+                    position = Position(float(pos), float(averageCost))
+                    logger.debug(f"POSITIONS INITIAL: {self.positions}")
+                    # self.positions[contract.conId] = position
+                    self.positions.setdefault(contract.conId, position)
+                else:
+                    position = self.positions[contract.conId]
+                    logger.debug(f"POSITION UPDATE: {position}")
+                    if not position.fix(float(pos), averageCost):
+                        err = ('The current calculated position and '
+                               'the position reported by the broker do not match. '
+                               'Operation can continue, but the trades '
+                               'calculated in the strategy may be wrong')
 
-                    self.notifs.put((err, (), {}))
+                        self.notifs.put((err, (), {}))
 
-                # Flag signal to broker at the end of account download
-                # self.port_update = True
-                self.broker.push_portupdate()
+                    # Flag signal to broker at the end of account download
+                    # self.port_update = True
+                    self.broker.push_portupdate()
+            except Exception as e:
+                logger.exception(f"Exception: {e}")
 
     def getposition(self, contract, clone=False):
         # Lock access to the position dicts. This is called from main thread
         # and updates could be happening in the background
         with self._lock_pos:
-            position = self.positions[contract.m_conId]
+            position = self.positions[contract.conId]
             if clone:
                 return copy(position)
 
             return position
 
-    @ibregister
-    def updateAccountValue(self, msg):
+    @logibmsg
+    def updateAccountValue(self, key, value, currency, accountName):
         # Lock access to the dicts where values are updated. This happens in a
         # sub-thread and could kick it at anytime
         with self._lock_accupd:
             try:
-                value = float(msg.value)
+                value = float(value)
             except ValueError:
-                value = msg.value
+                value = value
 
-            self.acc_upds[msg.accountName][msg.key][msg.currency] = value
+            self.acc_upds[accountName][key][currency] = value
 
-            if msg.key == 'NetLiquidation':
+            if key == 'NetLiquidation':
                 # NetLiquidationByCurrency and currency == 'BASE' is the same
-                self.acc_value[msg.accountName] = value
-            elif msg.key == 'TotalCashBalance' and msg.currency == 'BASE':
-                self.acc_cash[msg.accountName] = value
+                self.acc_value[accountName] = value
+            elif key == 'CashBalance' and currency == 'BASE':
+                self.acc_cash[accountName] = value
 
+    @logibmsg
     def get_acc_values(self, account=None):
         '''Returns all account value infos sent by TWS during regular updates
         Waits for at least 1 successful download
@@ -1413,14 +2161,14 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         '''
         # Wait for at least 1 account update download to have been finished
         # before the account infos can be returned to the calling client
-        if self.connected():
-            self._event_accdownload.wait()
+        # if self.connected():
+        #     self._event_accdownload.wait()
         # Lock access to acc_cash to avoid an event intefering
         with self._updacclock:
             if account is None:
                 # wait for the managedAccount Messages
-                if self.connected():
-                    self._event_managed_accounts.wait()
+                # if self.connected():
+                #     self._event_managed_accounts.wait()
 
                 if not self.managed_accounts:
                     return self.acc_upds.copy()
@@ -1438,6 +2186,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
             return self.acc_upds.copy()
 
+    @logibmsg
     def get_acc_value(self, account=None):
         '''Returns the net liquidation value sent by TWS during regular updates
         Waits for at least 1 successful download
@@ -1450,18 +2199,12 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         '''
         # Wait for at least 1 account update download to have been finished
         # before the value can be returned to the calling client
-        if self.connected():
-            self._event_accdownload.wait()
         # Lock access to acc_cash to avoid an event intefering
-        with self._lock_accupd:
-            if account is None:
-                # wait for the managedAccount Messages
-                if self.connected():
-                    self._event_managed_accounts.wait()
 
+        with self._updacclock:
+            if account is None:
                 if not self.managed_accounts:
                     return float()
-
                 elif len(self.managed_accounts) > 1:
                     return sum(self.acc_value.values())
 
@@ -1473,8 +2216,9 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             except KeyError:
                 pass
 
-            return float()
+        return float()
 
+    @logibmsg
     def get_acc_cash(self, account=None):
         '''Returns the total cash value sent by TWS during regular updates
         Waits for at least 1 successful download
@@ -1487,14 +2231,14 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         '''
         # Wait for at least 1 account update download to have been finished
         # before the cash can be returned to the calling client
-        if self.connected():
-            self._event_accdownload.wait()
+        # if self.connected():
+        #     self._event_accdownload.wait()
         # Lock access to acc_cash to avoid an event intefering
         with self._lock_accupd:
             if account is None:
-                # wait for the managedAccount Messages
-                if self.connected():
-                    self._event_managed_accounts.wait()
+                # # wait for the managedAccount Messages
+                # if self.connected():
+                #     self._event_managed_accounts.wait()
 
                 if not self.managed_accounts:
                     return float()
