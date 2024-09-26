@@ -15,6 +15,6 @@ def get_version_string():
 
 __version__ = get_version_string()
 
-from .order import Order
 from .contract import Contract
-from .message import Mes
+from .message import *
+from .order import Order
