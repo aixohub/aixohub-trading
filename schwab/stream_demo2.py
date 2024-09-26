@@ -1,6 +1,6 @@
 import os
 
-from schwab.schwab_client import SchwabClient
+from schwab_client import SchwabClient
 
 
 def main():
