@@ -1,12 +1,35 @@
 import os
 
-from schwab_client import SchwabClient
+from confluent_kafka import Producer
+
+# 创建生产者配置
+conf = {
+    'bootstrap.servers': 'www.aixohub.com:9092'  # Kafka 服务器地址
+
+}
+
+
+def delivery_report(err, msg):
+    if err is not None:
+        print(f"Message delivery failed: {err}")
+    else:
+        print(f"Message delivered to {msg.topic()} [{msg}]")
+
+
+def sendKafka(data, *args, **kwargs):
+    producer = Producer(conf)
+    topic = 'stock-nvda'
+
+    json_bytes = data.encode('utf-8')
+    # 发送消息到 Kafka
+    producer.produce(topic, key='key344', value=json_bytes, callback=delivery_report)
+    producer.flush()
 
 
 def main():
     # place your app key and app secret in the .env file
 
-    client = SchwabClient(os.getenv('callback_url'))
+    client = schwabdev.SchwabClient(os.getenv('callback_url'))
 
     # define a variable for the steamer:
     streamer = client.stream
@@ -20,7 +43,7 @@ def main():
     """
 
     # start steamer with default response handler (print):
-    streamer.start()
+    streamer.start(receiver=sendKafka)
 
     """
     You can stream up to 500 keys.
