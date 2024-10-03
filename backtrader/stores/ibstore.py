@@ -743,6 +743,8 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             print(f"TWS conn.connect {1}", self.conn.isConnected())
             self.apiThread = threading.Thread(target=self.conn.run, daemon=True)
             self.apiThread.start()
+            # Sleep interval to allow time for connection to server
+            time.sleep(1)
         except Exception as e:
             print(f"TWS Failed to connect: {e}")
 
