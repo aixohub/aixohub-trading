@@ -16,3 +16,7 @@ python setup.py install
  
 cdpip show ibapi
 ```
+
+## btplotting
+
+ pip install git+https://github.com/happydasch/btplotting
