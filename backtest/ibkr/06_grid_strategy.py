@@ -1,9 +1,15 @@
 import datetime
 import math
+import os
+import sys
 
 import pandas as pd
+from btplotting import BacktraderPlottingLive, BacktraderPlotting
 
 import backtrader as bt
+
+date_formate_1 = "%Y-%m-%d %H:%M:%S"
+date_formate_2 = "%Y%m%d"
 
 
 class GridStrategy(bt.Strategy):
@@ -181,20 +187,14 @@ class My_PandasData(bt.feeds.PandasData):
     )
 
 
-import os, sys
-from btplotting import BacktraderPlottingLive, BacktraderPlotting
-
-date_formate_1 = "%Y-%m-%d %H:%M:%S"
-date_formate_2 = "%Y%m%d"
-
-if __name__ == '__main__':
+def run_backtest(param):
     cerebro = bt.Cerebro()
     # 加载数据
     modpath = os.path.dirname(os.path.abspath(sys.argv[0]))
-    datapath = os.path.join(modpath, 'datas/stock-NVDA.csv')
+    datapath = os.path.join(modpath, param['data'])
     datas = pd.read_csv(datapath)
 
-    datas['datetime'] = pd.to_datetime(datas['datetime'], format=date_formate_1)
+    datas['datetime'] = pd.to_datetime(datas['datetime'], format=param['date_formate'])
     datas = datas[['code', 'datetime', 'open', 'high', 'low', 'close', 'volume']].sort_values(by=['datetime'])
 
     datafeed = My_PandasData(dataname=datas)
@@ -214,8 +214,8 @@ if __name__ == '__main__':
 
     # 加载策略
     cerebro.addstrategy(strategy=GridStrategy,
-                        base_price=1.0,
-                        distance=0.01)
+                        base_price=120,
+                        distance=0.02)
 
     # 加载
     cerebro.addanalyzer(bt.analyzers.Returns, _name='收益')
@@ -231,3 +231,15 @@ if __name__ == '__main__':
     # p = BacktraderPlotting(style='bar', multiple_tabs=True)
     p = BacktraderPlotting(style='bar')
     cerebro.plot(p)
+
+
+if __name__ == '__main__':
+    param = {
+        "data": "datas/516510.SH.csv",
+        "date_formate": date_formate_2
+    }
+    para2 = {
+        "data": "datas/stock-NVDA.csv",
+        "date_formate": date_formate_1
+    }
+    run_backtest(para2)
