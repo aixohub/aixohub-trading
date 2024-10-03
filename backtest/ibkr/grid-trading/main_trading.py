@@ -52,7 +52,7 @@ def run_backtest(param):
     cerebro.addanalyzer(bt.analyzers.AnnualReturn, _name='AnnualReturn')
     cerebro.addanalyzer(bt.analyzers.SharpeRatio, riskfreerate=0.0, annualize=True, _name='SharpeRatio')
     cerebro.addanalyzer(bt.analyzers.DrawDown, _name='DrawDown')
-    cerebro.addanalyzer(BacktraderPlottingLive, address='*', port=8899)
+    cerebro.addanalyzer(BacktraderPlottingLive, address='127.0.0.1', port=8899)
 
     # 开始回测
     cerebro.run()

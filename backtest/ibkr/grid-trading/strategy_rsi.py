@@ -7,17 +7,18 @@ class RsiStrategy(bt.Strategy):
     params = dict(
         smaperiod=3,
         short_period=5,
-        long_period=9,
+        long_period=13,
         stop_loss=0.02,
         period=8,
         short_ravg=5,
-        long_ravg=9,
+        long_ravg=13,
         max_position=10,
         spike_window=5,
         cls=0.5,
         csr=-0.1,
         clr=-0.3,
-        open_percent=0.2
+        open_percent=0.5,
+        distance=2
     )
 
     def log(self, txt, dt=None):
@@ -31,6 +32,7 @@ class RsiStrategy(bt.Strategy):
         self.last_order_price = None
         self.last_order_size = None
         self.open_percent = self.p.open_percent
+        self.distance = self.p.distance
         self.rsi = bt.ind.RSI_Safe(self.data.close, period=self.p.period)
         self.long_RAVG = bt.indicators.SMA(self.data.close,
                                            period=self.p.long_ravg, plotname='Long Returns Avg')
@@ -65,12 +67,14 @@ class RsiStrategy(bt.Strategy):
             buy_size = math.floor(buy_size)  # 调整为整数股数
             self.buy(price=current_price, size=buy_size)
             self.last_order_size = buy_size
+            self.last_order_price = current_price
             self.has_order = True
             self.log(f'买入 {buy_size} 股，价格: {current_price}')
         elif signal < 0 and self.has_order:
-            self.sell(price=current_price, size=self.last_order_size)
-            self.has_order = False
-            self.log(f'卖出 {self.last_order_size} 股，价格: {current_price}')
+            if current_price > self.last_order_price + self.distance:
+                self.sell(price=current_price, size=self.last_order_size)
+                self.has_order = False
+                self.log(f'卖出 {self.last_order_size} 股，价格: {current_price}')
         # 输出当前持仓状态
         self.log(
             f'持仓规模: {self.getposition(self.data).size}, 市值: {self.broker.getvalue()}, 可用资金: {self.broker.getcash()}')
