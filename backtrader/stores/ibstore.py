@@ -331,8 +331,8 @@ def logibmsg(fn):
                 args_repr = [repr(a) for a in args]
                 kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
                 signature = ", ".join(args_repr + kwargs_repr)
-                logger.debug(f"Calling {fn.__name__}({signature})")
-                print(f"Calling {fn.__name__}({signature})")
+                logger.debug(f"Calling-- {fn.__name__}({signature})")
+                print(f"Calling--- {fn.__name__}({signature})")
             return fn(self, *args, **kwargs)
         except Exception as e:
             logger.exception(f"Exception raised in {fn.__name__}. exception: {str(e)}")
@@ -362,6 +362,7 @@ class IBApi(EWrapper, EClient):
     def nextValidId(self, orderId):
         """ Receives next valid order id."""
         logger.debug(f"nextValidId: {orderId}")
+        logger.debug(f"TWS nextValidId: {orderId}")
         self.cb.nextValidId(orderId)
 
     @logibmsg
@@ -373,7 +374,7 @@ class IBApi(EWrapper, EClient):
     def connectionClosed(self):
         """This function is called when TWS closes the sockets
         connection with the ActiveX control, or when TWS is shut down."""
-        logger.debug(f"connectionClosed")
+        logger.info(f"TWS connectionClosed")
         self.cb.connectionClosed()
 
     @logibmsg
@@ -665,6 +666,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         ('timeoffset', True),  # Use offset to server for timestamps if needed
         ('timerefresh', 60.0),  # How often to refresh the timeoffset
         ('indcash', True),  # Treat IND codes as CASH elements
+        ('_debug', True),
     )
 
     @classmethod
@@ -738,6 +740,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         try:
             self.conn = IBApi(self, self._debug)
             self.conn.connect(self.p.host, self.p.port, self.clientId)
+            print(f"TWS conn.connect {1}", self.conn.isConnected())
             self.apiThread = threading.Thread(target=self.conn.run, daemon=True)
             self.apiThread.start()
         except Exception as e:

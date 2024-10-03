@@ -23,7 +23,10 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
+import time
+
 import backtrader as bt
+from backtest.ibkr.logger_conf import setup_logging
 from backtrader.feeds import IBData
 
 
@@ -66,21 +69,24 @@ class TestStrategy(bt.Strategy):
         print('--------------------------------------------------')
 
     def next(self):
-        signal = self.p.cls * self.ls_cross + self.p.clr * self.lr_cross + self.p.csr * self.sr_cross
-
         print(
-            f''' code: {self.data.code} datetime: {self.datas[0].datetime.datetime(0)} rsi: {signal} turnover: {self.data.turnover[0]} volume: {self.data.volume[0]}  Close: {self.data.close[0]}  ''')
+            f''' code: {self.data.code}''')
+        # signal = self.p.cls * self.ls_cross + self.p.clr * self.lr_cross + self.p.csr * self.sr_cross
+        #
+        # print(
+        #     f''' code: {self.data.code} datetime: {self.datas[0].datetime.datetime(0)} rsi: {signal} turnover: {self.data.turnover[0]} volume: {self.data.volume[0]}  Close: {self.data.close[0]}  ''')
 
 
 def run(args=None):
     cerebro = bt.Cerebro()
     code = 'NVDA'
     # 使用自定义数据源
-    data = IBData(host='127.0.0.1', port=7497, clientId=12,
+    data = IBData(host='127.0.0.1', port=7496, clientId=12,
                   name=code,
                   dataname=code,
                   secType='STK',
                   what='BID_ASK',
+                  exchange="SMART",
                   rtbar=True
                   )
     cerebro.adddata(data)
@@ -90,4 +96,6 @@ def run(args=None):
 
 
 if __name__ == '__main__':
+    setup_logging()
     run()
+    time.sleep(1000)
