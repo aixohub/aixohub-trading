@@ -87,7 +87,7 @@ def run(args=None):
                   secType='STK',
                   what='BID_ASK',
                   exchange="SMART",
-                  rtbar=True
+                  currency='USD'
                   )
     cerebro.adddata(data)
 
@@ -98,4 +98,3 @@ def run(args=None):
 if __name__ == '__main__':
     setup_logging()
     run()
-    time.sleep(1000)

@@ -332,7 +332,7 @@ def logibmsg(fn):
                 kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
                 signature = ", ".join(args_repr + kwargs_repr)
                 logger.debug(f"Calling-- {fn.__name__}({signature})")
-                print(f"Calling--- {fn.__name__}({signature})")
+                logger.info(f"Calling--- {fn.__name__}({signature})")
             return fn(self, *args, **kwargs)
         except Exception as e:
             logger.exception(f"Exception raised in {fn.__name__}. exception: {str(e)}")
@@ -2258,3 +2258,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
                 return self.acc_cash[account]
             except KeyError:
                 pass
+
+    def reqMarketDataType(self):
+        self.conn.reqMarketDataType()
+
