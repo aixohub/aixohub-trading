@@ -1,7 +1,7 @@
 import datetime
 import os
 import sys
-import grid_strategy
+import strategy_rsi
 import pandas as pd
 from btplotting import BacktraderPlottingLive, BacktraderPlotting
 
@@ -44,9 +44,7 @@ def run_backtest(param):
     cerebro.broker.setcash(10000.0)
 
     # 加载策略
-    cerebro.addstrategy(strategy=grid_strategy.GridStrategy,
-                        base_price=120,
-                        distance=1)
+    cerebro.addstrategy(strategy=strategy_rsi.RsiStrategy)
 
     # 加载
     cerebro.addanalyzer(bt.analyzers.Returns, _name='收益')
