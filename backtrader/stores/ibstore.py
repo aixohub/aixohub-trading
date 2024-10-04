@@ -667,7 +667,8 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         ('timeoffset', True),  # Use offset to server for timestamps if needed
         ('timerefresh', 60.0),  # How often to refresh the timeoffset
         ('indcash', True),  # Treat IND codes as CASH elements
-        ('_debug', True),
+        ('account', None),
+        ('initAccountFlag', True),
     )
 
     @classmethod
@@ -748,6 +749,10 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             time.sleep(2)
         except Exception as e:
             print(f"TWS Failed to connect: {e}")
+
+        if self.connected() and self.p.initAccountFlag:
+            self.reqAccountUpdates(account=self.p.account)
+            self.reqPositions()
 
         # This utility key function transforms a barsize into a:
         #   (Timeframe, Compression) tuple which can be sorted
@@ -2052,7 +2057,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         with self._lock_pos:
             try:
                 if not self._event_accdownload.is_set():  # 1st event seen
-                    position = Position(float(pos), float(avgCost))
+                    position = Position(float(pos), float(avgCost), contract.symbol)
                     logger.debug(f"POSITIONS INITIAL: {self.positions}")
                     self.positions[contract.conId] = position
                 else:
@@ -2105,7 +2110,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         with self._lock_pos:
             try:
                 if not self._event_accdownload.is_set():  # 1st event seen
-                    position = Position(float(pos), float(averageCost))
+                    position = Position(float(pos), float(averageCost), contract.symbol)
                     logger.debug(f"POSITIONS INITIAL: {self.positions}")
                     # self.positions[contract.conId] = position
                     self.positions.setdefault(contract.conId, position)
@@ -2135,6 +2140,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
                 return copy(position)
 
             return position
+
 
     @logibmsg
     def updateAccountValue(self, key, value, currency="BASE", accountName=None):
@@ -2238,8 +2244,8 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         '''
         # Wait for at least 1 account update download to have been finished
         # before the cash can be returned to the calling client
-        # if self.connected():
-        #     self._event_accdownload.wait()
+        if self.connected():
+            self._event_accdownload.wait()
         # Lock access to acc_cash to avoid an event intefering
         with self._lock_accupd:
             if account is None:

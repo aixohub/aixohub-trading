@@ -22,9 +22,6 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 
-from copy import copy
-
-
 class Position(object):
     '''
     Keeps and updates the size and price of a position. The object has no
@@ -41,6 +38,7 @@ class Position(object):
     def __str__(self):
         items = list()
         items.append('--- Position Begin')
+        items.append('- symbol: {}'.format(self.symbol))
         items.append('- Size: {}'.format(self.size))
         items.append('- Price: {}'.format(self.price))
         items.append('- Price orig: {}'.format(self.price_orig))
@@ -50,7 +48,8 @@ class Position(object):
         items.append('--- Position End')
         return '\n'.join(items)
 
-    def __init__(self, size=0, price=0.0):
+    def __init__(self, size=0, price=0.0, symbol=""):
+        self.symbol = symbol
         self.size = size
         if size:
             self.price = self.price_orig = price
@@ -116,10 +115,10 @@ class Position(object):
     __nonzero__ = __bool__
 
     def clone(self):
-        return Position(size=self.size, price=self.price)
+        return Position(size=self.size, price=self.price, symbol=self.symbol)
 
     def pseudoupdate(self, size, price):
-        return Position(self.size, self.price).update(size, price)
+        return Position(self.size, self.price, self.symbol).update(size, price)
 
     def update(self, size, price, dt=None):
         '''

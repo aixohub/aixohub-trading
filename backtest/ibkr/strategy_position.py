@@ -1,3 +1,5 @@
+import ibapi.contract
+
 import backtrader as bt
 from backtest.ibkr.logger_conf import setup_logging
 
@@ -29,20 +31,26 @@ class IBKRPositionInitStrategy(bt.Strategy):
 
 if __name__ == '__main__':
     setup_logging()
+
+    broker = bt.brokers.IBBroker(host='127.0.0.1', port=7496, clientId=35)
     # 设置 IBKR 的连接参数
     store = bt.stores.IBStore(port=7496, clientId=123)
+    store.start(broker=broker)
     print(" = * 5")
-    cash1 = store.get_acc_cash(account="U12081371")
+
+    cash1 = store.get_acc_cash()
     print(f"cash1 {cash1}")
+    cash2 = broker.getcash()
+    broker.orderstatus()
+    contract = ibapi.contract.Contract()
+    contract.conId = 12
+    store.reqPositions()
+    position = store.getposition(contract=contract, clone=False)
 
     # 创建 Cerebro 引擎
     cerebro = bt.Cerebro()
-    broker = bt.brokers.IBBroker(host='127.0.0.1', port=7496, clientId=35)
-    broker.start()
-
-    cash = broker.getcash()
-    print(cash)
-
+    data = store.getdata(dataname='USD.JPY', timeframe=bt.TimeFrame.Minutes)
+    cerebro.adddata(data)
     # 添加策略
     cerebro.addstrategy(IBKRPositionInitStrategy)
 
