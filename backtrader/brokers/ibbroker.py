@@ -282,6 +282,7 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
         self.ib.start(broker=self)
         if self.ib.connected():
             self.ib.reqAccountUpdates()
+            self.ib.reqPositions()
             self.startingcash = self.cash = self.ib.get_acc_cash()
             self.startingvalue = self.value = self.ib.get_acc_value()
         else:
@@ -303,10 +304,11 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
         logger.debug(f"getvalue: {self.value}")
         return self.value
 
-    def getposition(self, data, clone=True):
-        position = self.ib.getposition(data.tradecontract, clone=clone)
+    def getposition(self, symbol, clone=True):
+        position = self.ib.getposition(symbol, clone=clone)
         logger.info(f"getposition: {position}")
         return position
+
 
     def cancel(self, order):
         try:

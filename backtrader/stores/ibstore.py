@@ -2059,9 +2059,9 @@ class IBStore(with_metaclass(MetaSingleton, object)):
                 if not self._event_accdownload.is_set():  # 1st event seen
                     position = Position(float(pos), float(avgCost), contract.symbol)
                     logger.debug(f"POSITIONS INITIAL: {self.positions}")
-                    self.positions[contract.conId] = position
+                    self.positions[contract.symbol] = position
                 else:
-                    position = self.positions[contract.conId]
+                    position = self.positions[contract.symbol]
                     logger.debug(f"POSITION UPDATE: {position}")
                     if not position.fix(float(pos), avgCost):
                         err = ('The current calculated position and '
@@ -2113,9 +2113,9 @@ class IBStore(with_metaclass(MetaSingleton, object)):
                     position = Position(float(pos), float(averageCost), contract.symbol)
                     logger.debug(f"POSITIONS INITIAL: {self.positions}")
                     # self.positions[contract.conId] = position
-                    self.positions.setdefault(contract.conId, position)
+                    self.positions.setdefault(contract.symbol, position)
                 else:
-                    position = self.positions[contract.conId]
+                    position = self.positions[contract.symbol]
                     logger.debug(f"POSITION UPDATE: {position}")
                     if not position.fix(float(pos), averageCost):
                         err = ('The current calculated position and '
@@ -2131,11 +2131,11 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             except Exception as e:
                 logger.exception(f"Exception: {e}")
 
-    def getposition(self, contract, clone=False):
+    def getposition(self, symbol, clone=False):
         # Lock access to the position dicts. This is called from main thread
         # and updates could be happening in the background
         with self._lock_pos:
-            position = self.positions[contract.conId]
+            position = self.positions[symbol]
             if clone:
                 return copy(position)
 
