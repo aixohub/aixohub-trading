@@ -1,11 +1,14 @@
 import datetime
 import os
 import sys
-import strategy_rsi
+
 import pandas as pd
 from btplotting import BacktraderPlottingLive, BacktraderPlotting
 
 import backtrader as bt
+from backtest.ibkr.grids import IBKRPositionInitStrategy
+from backtest.ibkr.logger_conf import setup_logging
+
 
 date_formate_1 = "%Y-%m-%d %H:%M:%S"
 date_formate_2 = "%Y%m%d"
@@ -44,7 +47,7 @@ def run_backtest(param):
     cerebro.broker.setcash(10000.0)
 
     # 加载策略
-    cerebro.addstrategy(strategy=strategy_rsi.RsiStrategy)
+    cerebro.addstrategy(strategy=IBKRPositionInitStrategy)
 
     # 加载
     cerebro.addanalyzer(bt.analyzers.Returns, _name='收益')
@@ -63,6 +66,7 @@ def run_backtest(param):
 
 
 if __name__ == '__main__':
+    setup_logging()
     param = {
         "data": "datas/516510.SH.csv",
         "date_formate": date_formate_2

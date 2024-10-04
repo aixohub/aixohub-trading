@@ -386,13 +386,14 @@ class IBApi(EWrapper, EClient):
     def accountDownloadEnd(self, accountName):
         """This is called after a batch updateAccountValue() and
         updatePortfolio() is sent."""
+        logger.info(f"accountDownloadEnd -- accountName: {accountName}")
         self.cb.accountDownloadEnd(accountName)
 
     @logibmsg
-    def updateAccountValue(self, key, val, currency, accountName):
+    def updateAccountValue(self, key, val, currency="base", accountName=None):
         """ This function is called only when ReqAccountUpdates on
         EEClientSocket object has been called. """
-        logger.debug(f"{key}, {val}, {currency}, {accountName}")
+        logger.info(f"updateAccountValue key: {key}, val: {val}, currency: {currency}, accountName: {accountName}")
         self.cb.updateAccountValue(key, val, currency, accountName)
 
     @logibmsg
@@ -660,7 +661,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         ('broker_user_name', ''),
         ('broker_password', ''),
         ('notifyall', False),
-        ('_debug', False),
+        ('_debug', True),
         ('reconnect', 3),  # -1 forever, 0 No, > 0 number of retries
         ('timeout', 3.0),  # timeout between reconnections
         ('timeoffset', True),  # Use offset to server for timestamps if needed
@@ -740,11 +741,11 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         try:
             self.conn = IBApi(self, self._debug)
             self.conn.connect(self.p.host, self.p.port, self.clientId)
-            print(f"TWS conn.connect {1}", self.conn.isConnected())
+            print(f"TWS conn.connect {self.conn.isConnected()}")
             self.apiThread = threading.Thread(target=self.conn.run, daemon=True)
             self.apiThread.start()
             # Sleep interval to allow time for connection to server
-            time.sleep(1)
+            time.sleep(2)
         except Exception as e:
             print(f"TWS Failed to connect: {e}")
 
@@ -1054,7 +1055,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
     def managedAccounts(self, accountsList):
         # 1st message in the stream
-        self.managed_accounts = accountsList.split(',')
+        self.managed_accounts = [s for s in accountsList.split(',') if s]
         self._event_managed_accounts.set()
 
         # Request time to avoid synchronization issues
@@ -2136,7 +2137,8 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             return position
 
     @logibmsg
-    def updateAccountValue(self, key, value, currency, accountName):
+    def updateAccountValue(self, key, value, currency="BASE", accountName=None):
+        logger.info(f"updateAccountValue22 key: {key}, val: {value}, currency: {currency}, accountName: {accountName}")
         # Lock access to the dicts where values are updated. This happens in a
         # sub-thread and could kick it at anytime
         with self._lock_accupd:
@@ -2249,7 +2251,14 @@ class IBStore(with_metaclass(MetaSingleton, object)):
                     return float()
 
                 elif len(self.managed_accounts) > 1:
-                    return sum(self.acc_cash.values())
+                    vals = self.acc_cash.values()
+                    total = 0
+                    for val in vals:
+                        if not val:
+                            continue
+                        else:
+                            total += val
+                    return total
 
                 # Only 1 account, fall through to return only 1
                 account = self.managed_accounts[0]
@@ -2261,4 +2270,3 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
     def reqMarketDataType(self):
         self.conn.reqMarketDataType()
-
