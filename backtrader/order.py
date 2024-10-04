@@ -279,6 +279,7 @@ class OrderBase(with_metaclass(MetaParams, object)):
 
     def __str__(self):
         tojoin = list()
+        tojoin.append('symbol: {}'.format(self.symbol))
         tojoin.append('Ref: {}'.format(self.ref))
         tojoin.append('OrdType: {}'.format(self.ordtype))
         tojoin.append('OrdType: {}'.format(self.ordtypename()))
@@ -301,6 +302,7 @@ class OrderBase(with_metaclass(MetaParams, object)):
 
     def __init__(self):
         self.ref = next(self.refbasis)
+        self.symbol = None
         self.broker = None
         self.info = AutoOrderedDict()
         self.comminfo = None
@@ -319,10 +321,10 @@ class OrderBase(with_metaclass(MetaParams, object)):
 
         # Set a reference price if price is not set using
         # the close price
-        pclose = self.data.close[0] if not self.p.simulated else self.price
+        pclose = self.price
         price = pclose if not self.price and not self.pricelimit else self.price
 
-        dcreated = self.data.datetime[0] if not self.p.simulated else 0.0
+        dcreated = datetime.datetime.now()
         self.created = OrderData(dt=dcreated,
                                  size=self.size,
                                  price=price,

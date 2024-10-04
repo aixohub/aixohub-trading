@@ -27,6 +27,7 @@ import uuid
 from datetime import date, datetime, timedelta
 
 import ibapi.order
+
 from backtrader import (num2date, date2num, BrokerBase,
                         Order, OrderBase)
 from backtrader.comminfo import CommInfoBase
@@ -96,6 +97,7 @@ class IBOrder(OrderBase, ibapi.order.Order):
         fields'''
         basetxt = super(IBOrder, self).__str__()
         tojoin = [basetxt]
+        tojoin.append('Ref: {}'.format(self.ref))
         tojoin.append('Ref: {}'.format(self.ref))
         tojoin.append('orderId: {}'.format(self.orderId))
         tojoin.append('Action: {}'.format(self.action))
@@ -309,7 +311,6 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
         logger.info(f"getposition: {position}")
         return position
 
-
     def cancel(self, order):
         try:
             o = self.orderbyid[order.orderId]
@@ -356,13 +357,15 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
 
         return IBCommInfo(mult=mult, stocklike=stocklike)
 
-    def _makeorder(self, action, owner, data,
-                   size, price=None, plimit=None,
+    def _makeorder(self, action, owner, data=None,
+                   symbol=None,
+                   size=None, price=None, plimit=None,
                    exectype=None, valid=None,
                    tradeid=0, **kwargs):
 
         orderId = self.ib.nextOrderId()
         order = IBOrder(action, owner=owner, data=data,
+                        symbol=symbol,
                         size=size, price=price, pricelimit=plimit,
                         exectype=exectype, valid=valid,
                         tradeid=tradeid,
@@ -373,14 +376,17 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
         order.addcomminfo(self.getcommissioninfo(data))
         return order
 
-    def buy(self, owner, data,
-            size, price=None, plimit=None,
+    def buy(self, owner, data, symbol=None,
+            size=1, price=None, plimit=None,
             exectype=None, valid=None, tradeid=0,
             **kwargs):
 
         order = self._makeorder(
-            'BUY',
-            owner, data, size, price, plimit, exectype, valid, tradeid,
+            'BUY', owner, data=data,
+            symbol=symbol,
+            size=size, price=price,
+            plimit=plimit, exectype=exectype,
+            valid=valid, tradeid=tradeid,
             **kwargs)
 
         return self.submit(order)

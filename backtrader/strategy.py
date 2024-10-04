@@ -771,7 +771,7 @@ class Strategy(with_metaclass(MetaStrategy, StrategyBase)):
         '''Cancels the order in the broker'''
         self.broker.cancel(order)
 
-    def buy(self, data=None,
+    def buy(self, data=None, symbol=None,
             size=None, price=None, plimit=None,
             exectype=None, valid=None, tradeid=0, oco=None,
             trailamount=None, trailpercent=None,
@@ -931,7 +931,7 @@ class Strategy(with_metaclass(MetaStrategy, StrategyBase)):
 
         if size:
             return self.broker.buy(
-                self, data,
+                self, data=data, symbol=symbol,
                 size=abs(size), price=price, plimit=plimit,
                 exectype=exectype, valid=valid, tradeid=tradeid, oco=oco,
                 trailamount=trailamount, trailpercent=trailpercent,
