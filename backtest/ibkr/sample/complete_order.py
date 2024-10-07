@@ -3,7 +3,6 @@ import time
 
 from ibapi.client import EClient
 from ibapi.contract import Contract
-from ibapi.order import *
 from ibapi.wrapper import EWrapper
 
 
@@ -29,9 +28,22 @@ class IBapi(EWrapper, EClient):
         print('Order Executed: ', reqId, contract.symbol, contract.secType, contract.currency, execution.execId,
               execution.orderId, execution.shares, execution.lastLiquidity)
 
+    def completedOrder(self, contract, order, orderState):
+        print(f""""completedOrder  contract== {contract} order== {order} orderState==  {orderState.status} """)
+
 
 def run_loop():
     app.run()
+
+
+# Function to create FX Order contract
+def FX_order(symbol):
+    contract = Contract()
+    contract.symbol = symbol[:3]
+    contract.secType = 'CASH'
+    contract.exchange = 'IDEALPRO'
+    contract.currency = symbol[3:]
+    return contract
 
 
 if __name__ == '__main__':
@@ -54,24 +66,7 @@ if __name__ == '__main__':
             print('waiting for connection')
             time.sleep(1)
 
-    # Create contract
-    contract = Contract()
-    contract.symbol = 'TSLA'
-    contract.secType = 'OPT'
-    contract.exchange = 'SMART'
-    contract.lastTradeDateOrContractMonth = '20201002'
-    contract.strike = 424
-    contract.right = 'C'
-    contract.multiplier = '100'
-
-    # Create order object
-    order = Order()
-    order.action = 'BUY'
-    order.totalQuantity = 1
-    order.orderType = 'MKT'
-
-    # Place order
-    app.placeOrder(app.nextorderId, contract, order)
+    app.reqCompletedOrders(True)
 
     time.sleep(3)
     app.disconnect()

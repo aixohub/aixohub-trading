@@ -64,52 +64,53 @@ def Stock_contract(symbol, secType='STK', exchange='SMART', currency='USD'):
     return contract
 
 
-app = IBapi()
-app.connect('127.0.0.1', 7496, 123)
+if __name__ == '__main__':
+    app = IBapi()
+    app.connect('127.0.0.1', 7497, 123)
 
-app.nextorderId = None
+    app.nextorderId = None
 
-# Start the socket in a thread
-api_thread = threading.Thread(target=run_loop, daemon=True)
-api_thread.start()
+    # Start the socket in a thread
+    api_thread = threading.Thread(target=run_loop, daemon=True)
+    api_thread.start()
 
-# Check if the API is connected via orderid
-while True:
-    if isinstance(app.nextorderId, int):
-        print('connected')
-        break
-    else:
-        print('waiting for connection')
-        time.sleep(1)
+    # Check if the API is connected via orderid
+    while True:
+        if isinstance(app.nextorderId, int):
+            print('connected')
+            break
+        else:
+            print('waiting for connection')
+            time.sleep(1)
 
-# Create contracts
-apple_contract = Stock_contract('AAPL')
-google_contract = Stock_contract('GOOG')
+    # Create contracts
+    apple_contract = Stock_contract('AAPL')
+    google_contract = Stock_contract('GOOG')
 
-# Update contract ID
-google_contract = app.get_contract_details(101, google_contract)
+    # Update contract ID
+    google_contract = app.get_contract_details(101, google_contract)
 
-##Create price conditions
-# init
-priceCondition = Create(OrderCondition.Price)
-priceCondition.conId = google_contract.conId
-priceCondition.exchange = google_contract.exchange
+    ##Create price conditions
+    # init
+    priceCondition = Create(OrderCondition.Price)
+    priceCondition.conId = google_contract.conId
+    priceCondition.exchange = google_contract.exchange
 
-# create conditions
-priceCondition.isMore = True
-priceCondition.triggerMethod = priceCondition.TriggerMethodEnum.Last
-priceCondition.price = 1400.00
+    # create conditions
+    priceCondition.isMore = True
+    priceCondition.triggerMethod = priceCondition.TriggerMethodEnum.Last
+    priceCondition.price = 1400.00
 
-# Create order object
-order = Order()
-order.action = 'BUY'
-order.totalQuantity = 100
-order.orderType = 'MKT'
-# order.lmtPrice = '300' - optional - you can add a buy stop limit here
-order.conditions.append(priceCondition)
-order.transmit = True
+    # Create order object
+    order = Order()
+    order.action = 'BUY'
+    order.totalQuantity = 100
+    order.orderType = 'MKT'
+    # order.lmtPrice = '300' - optional - you can add a buy stop limit here
+    order.conditions.append(priceCondition)
+    order.transmit = True
 
-app.placeOrder(app.nextorderId, apple_contract, order)
+    app.placeOrder(app.nextorderId, apple_contract, order)
 
-time.sleep(3)
-app.disconnect()
+    time.sleep(3)
+    app.disconnect()

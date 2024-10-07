@@ -20,6 +20,7 @@ def run_loop():
     app.run()
 
 
+
 app = IBapi()
 app.connect('127.0.0.1', 7497, 126)
 

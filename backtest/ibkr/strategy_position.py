@@ -15,13 +15,14 @@ class IBKRPositionInitStrategy(bt.Strategy):
 
     def next(self):
         print(f"""open : {self.data.open[0]}  close : {self.data.close[0]}""")
-        self.buy(data=self.data, symbol='nvda', size=1, price=100)
+        # self.buy(data=self.data, symbol='nvda', size=1, price=100)
 
 
-
+api_port = 7496
+# api_port = 4001
 
 if __name__ == '__main__':
-    broker = bt.brokers.IBBroker(host='127.0.0.1', port=7496, clientId=35)
+    broker = bt.brokers.IBBroker(host='127.0.0.1', port=api_port, clientId=35)
     broker.start()
     cash2 = broker.getcash()
 
@@ -33,7 +34,7 @@ if __name__ == '__main__':
     print(position)
     code = 'USD.JPY'
     # 使用自定义数据源
-    data = IBData(host='127.0.0.1', port=7496, clientId=34,
+    data = IBData(host='127.0.0.1', port=api_port, clientId=34,
                   name=code,
                   dataname=code,
                   secType='CASH',

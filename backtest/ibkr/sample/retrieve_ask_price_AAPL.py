@@ -33,7 +33,7 @@ def run_loop():
 
 
 app = IBapi(orderId=1)
-app.connect('127.0.0.1', 7496, 58)
+app.connect('127.0.0.1', 7497, 58)
 
 
 def run():

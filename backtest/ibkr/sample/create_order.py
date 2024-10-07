@@ -44,41 +44,43 @@ def FX_order(symbol):
     return contract
 
 
-app = IBapi()
-app.connect('127.0.0.1', 7496, 123)
+if __name__ == '__main__':
+    app = IBapi()
+    app.connect('127.0.0.1', 7497, 123)
 
-app.nextorderId = None
+    app.nextorderId = None
 
-# Start the socket in a thread
-api_thread = threading.Thread(target=run_loop, daemon=True)
-api_thread.start()
+    # Start the socket in a thread
+    api_thread = threading.Thread(target=run_loop, daemon=True)
+    api_thread.start()
 
-# Check if the API is connected via orderid
-while True:
-    if isinstance(app.nextorderId, int):
-        print('connected')
-        print()
-        break
-    else:
-        print('waiting for connection')
-        time.sleep(1)
+    # Check if the API is connected via orderid
+    while True:
+        if isinstance(app.nextorderId, int):
+            print('connected')
+            print()
+            break
+        else:
+            print('waiting for connection')
+            time.sleep(1)
 
-# Create order object
-order = Order()
-order.action = 'BUY'
-order.totalQuantity = 1000
-order.orderType = 'LMT'
-order.lmtPrice = '1.10'
+    # Create order object
+    order = Order()
+    order.action = 'BUY'
+    order.totalQuantity = 1000
+    order.orderType = 'LMT'
+    order.lmtPrice = '1.10'
 
-# Place order
-app.placeOrder(app.nextorderId, FX_order('EURUSD'), order)
-# app.nextorderId += 1
+    # Place order
+    c = FX_order('EURUSD')
+    app.placeOrder(app.nextorderId, c, order)
+    # app.nextorderId += 1
 
-time.sleep(3)
+    time.sleep(3)
 
-# Cancel order
-print('cancelling order')
-app.cancelOrder(app.nextorderId)
+    # Cancel order
+    print('cancelling order')
+    app.cancelOrder(app.nextorderId)
 
-time.sleep(3)
-app.disconnect()
+    time.sleep(3)
+    app.disconnect()
