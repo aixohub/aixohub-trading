@@ -2057,7 +2057,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         with self._lock_pos:
             try:
                 if not self._event_accdownload.is_set():  # 1st event seen
-                    position = Position(float(pos), float(avgCost), contract.symbol)
+                    position = Position(float(pos), float(avgCost), contract.symbol, contract.conId)
                     logger.debug(f"POSITIONS INITIAL: {self.positions}")
                     self.positions[contract.symbol] = position
                 else:
@@ -2110,7 +2110,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         with self._lock_pos:
             try:
                 if not self._event_accdownload.is_set():  # 1st event seen
-                    position = Position(float(pos), float(averageCost), contract.symbol)
+                    position = Position(float(pos), float(averageCost), contract.symbol, contract.conId)
                     logger.debug(f"POSITIONS INITIAL: {self.positions}")
                     # self.positions[contract.conId] = position
                     self.positions.setdefault(contract.symbol, position)

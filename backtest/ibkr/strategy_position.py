@@ -16,6 +16,8 @@ class IBKRPositionInitStrategy(bt.Strategy):
     def next(self):
         print(f"""open : {self.data.open[0]}  close : {self.data.close[0]}""")
         # self.buy(data=self.data, symbol='nvda', size=1, price=100)
+        # self.sell(data=self.data, symbol='nvda', size=1, price=100)
+        # self.close()
 
 
 api_port = 7496
@@ -28,19 +30,41 @@ if __name__ == '__main__':
 
     print(f"""cash2: {cash2}""")
 
-    contract = ibapi.contract.Contract()
-    contract.conId = 12
+
     position = broker.getposition(symbol="TIGR")
     print(position)
-    code = 'USD.JPY'
+    con = {
+        "code": "USD.JPY",
+        "secType": "CASH",
+        "what": "BID_ASK",
+        "exchange": "IDEALPRO",
+        "currency": "USD",
+    }
+
+    contract1 = {
+        "code": "USD.JPY",
+        "secType": "CASH",
+        "what": "BID_ASK",
+        "exchange": "IDEALPRO",
+        "currency": "USD",
+    }
+
+    contract = {
+        "code": "NVDA",
+        "secType": "STK",
+        "what": "BID_ASK",
+        "exchange": "SMART",
+        "currency": "USD",
+    }
+
     # 使用自定义数据源
     data = IBData(host='127.0.0.1', port=api_port, clientId=34,
-                  name=code,
-                  dataname=code,
-                  secType='CASH',
-                  what='BID_ASK',
-                  exchange="IDEALPRO",
-                  currency='USD'
+                  name=contract['code'],
+                  dataname=contract['code'],
+                  secType=contract['secType'],
+                  what=contract['what'],
+                  exchange=contract['exchange'],
+                  currency=contract['currency']
                   )
 
     # 创建 Cerebro 引擎

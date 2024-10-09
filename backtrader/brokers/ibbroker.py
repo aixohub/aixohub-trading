@@ -391,13 +391,13 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
 
         return self.submit(order)
 
-    def sell(self, owner, data,
-             size, price=None, plimit=None,
+    def sell(self, owner, data, symbol=None,
+             size=None, price=None, plimit=None,
              exectype=None, valid=None, tradeid=0,
              **kwargs):
 
         order = self._makeorder(
-            'SELL',
+            'SELL', symbol,
             owner, data, size, price, plimit, exectype, valid, tradeid,
             **kwargs)
 
