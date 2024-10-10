@@ -820,6 +820,10 @@ class IBData(with_metaclass(MetaIBData, DataBase)):
             self.lines.close[0] = tick.askPrice
             self.lines.volume[0] = tick.bidSize
             self.lines.openinterest[0] = tick.askSize
+            self.lines.bidPrice[0] = tick.bidPrice
+            self.lines.askPrice[0] = tick.askPrice
+            self.lines.bidSize[0] = tick.bidSize
+            self.lines.askSize[0] = tick.askSize
         elif tick.dataType == 'RT_TICK_LAST':
             self.lines.close[0] = tick.price
             self.lines.volume[0] = tick.size

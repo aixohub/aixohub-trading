@@ -49,7 +49,7 @@ class Position(object):
         items.append('--- Position End')
         return '\n'.join(items)
 
-    def __init__(self, size=0, price=0.0, symbol="", conId=None):
+    def __init__(self, size=0, price=0.0, symbol=None, conId=None):
         self.conId = conId
         self.symbol = symbol
         self.size = size

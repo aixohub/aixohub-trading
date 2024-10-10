@@ -6,7 +6,6 @@ import pandas as pd
 from btplotting import BacktraderPlottingLive, BacktraderPlotting
 
 import backtrader as bt
-from backtest.ibkr.grids import IBKRPositionInitStrategy
 from backtest.ibkr.logger_conf import setup_logging
 
 

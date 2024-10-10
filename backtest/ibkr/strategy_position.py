@@ -1,8 +1,9 @@
-import ibapi.contract
-
 import backtrader as bt
+from backtest.ibkr.grids import SmaCross
+from backtest.ibkr.grids.strategy_grid import GridStrategy
+from backtrader import num2date
 from backtrader.feeds import IBData
-
+from btplotting import BacktraderPlottingLive, BacktraderPlotting
 
 class IBKRPositionInitStrategy(bt.Strategy):
     def log(self, txt, dt=None):
@@ -14,7 +15,11 @@ class IBKRPositionInitStrategy(bt.Strategy):
         pass
 
     def next(self):
-        print(f"""open : {self.data.open[0]}  close : {self.data.close[0]}""")
+        ts = self.data.datetime[0]
+        date = num2date(self.data.datetime[0])
+        symbol = self.data.contract.localSymbol
+        print(
+            f"""symbol: {symbol} time : {date} askPrice : {self.data.askPrice[0]}  bidPrice : {self.data.bidPrice[0]}  askSize : {self.data.askSize[0]} bidSize : {self.data.bidSize[0]}  """)
         # self.buy(data=self.data, symbol='nvda', size=1, price=100)
         # self.sell(data=self.data, symbol='nvda', size=1, price=100)
         # self.close()
@@ -29,7 +34,6 @@ if __name__ == '__main__':
     cash2 = broker.getcash()
 
     print(f"""cash2: {cash2}""")
-
 
     position = broker.getposition(symbol="TIGR")
     print(position)
@@ -50,7 +54,7 @@ if __name__ == '__main__':
     }
 
     contract = {
-        "code": "NVDA",
+        "code": "TIGR",
         "secType": "STK",
         "what": "BID_ASK",
         "exchange": "SMART",
@@ -64,20 +68,20 @@ if __name__ == '__main__':
                   secType=contract['secType'],
                   what=contract['what'],
                   exchange=contract['exchange'],
-                  currency=contract['currency']
+                  currency=contract['currency'],
+                  timeframe=bt.TimeFrame.Ticks
                   )
 
     # 创建 Cerebro 引擎
     cerebro = bt.Cerebro()
     cerebro.adddata(data)
     # 添加策略
-    cerebro.addstrategy(IBKRPositionInitStrategy)
+    cerebro.addstrategy(SmaCross)
 
     # 使用 IBKR 作为 broker
     cerebro.setbroker(broker)
 
     # 运行策略
     cerebro.run()
-
     # 打印最终持仓和资金
     print(f'最终资金: {cerebro.broker.getvalue():.2f}')

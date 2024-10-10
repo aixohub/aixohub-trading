@@ -35,7 +35,7 @@ class GridStrategy(bt.Strategy):
 
     def next(self):
         current_price = self.data.close[0]
-
+        symbol = self.data.contract.localSymbol
         # 初始化订单：open_flag = False 表示首次买入
         if not self.open_flag:
             # 价格变化小于1%时开始初始化
@@ -87,7 +87,7 @@ class GridStrategy(bt.Strategy):
 
         # 输出当前持仓状态
         self.log(
-            f'持仓规模: {self.getposition(self.data).size}, 市值: {self.broker.getvalue()}, 可用资金: {self.broker.getcash()}')
+            f'持仓规模: {self.getposition(symbol).size}, 市值: {self.broker.getvalue()}, 可用资金: {self.broker.getcash()}')
 
     def notify_order(self, order):
         order_status = ['Created', 'Submitted', 'Accepted', 'Partial', 'Completed', 'Canceled', 'Expired', 'Margin',
