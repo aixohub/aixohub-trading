@@ -3,7 +3,6 @@ from backtest.ibkr.grids import SmaCross
 from backtest.ibkr.grids.strategy_grid import GridStrategy
 from backtrader import num2date
 from backtrader.feeds import IBData
-from btplotting import BacktraderPlottingLive, BacktraderPlotting
 
 class IBKRPositionInitStrategy(bt.Strategy):
     def log(self, txt, dt=None):
@@ -25,8 +24,8 @@ class IBKRPositionInitStrategy(bt.Strategy):
         # self.close()
 
 
-api_port = 7496
-# api_port = 4001
+# api_port = 7497
+api_port = 4001
 
 if __name__ == '__main__':
     broker = bt.brokers.IBBroker(host='127.0.0.1', port=api_port, clientId=35)
@@ -54,7 +53,7 @@ if __name__ == '__main__':
     }
 
     contract = {
-        "code": "TIGR",
+        "code": "MSTR",
         "secType": "STK",
         "what": "BID_ASK",
         "exchange": "SMART",
@@ -76,7 +75,7 @@ if __name__ == '__main__':
     cerebro = bt.Cerebro()
     cerebro.adddata(data)
     # 添加策略
-    cerebro.addstrategy(SmaCross)
+    cerebro.addstrategy(IBKRPositionInitStrategy)
 
     # 使用 IBKR 作为 broker
     cerebro.setbroker(broker)
