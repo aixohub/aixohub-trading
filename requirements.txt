@@ -2,4 +2,4 @@ pandas
 futu-api
 clickhouse-driver
 confluent-kafka
-btplotting
+git+https://github.com/happydasch/btplotting
