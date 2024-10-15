@@ -1,3 +1,5 @@
 pandas
 futu-api
+clickhouse-driver
+confluent-kafka
 btplotting

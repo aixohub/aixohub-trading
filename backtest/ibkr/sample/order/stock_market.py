@@ -2,15 +2,33 @@ import datetime
 import threading
 import time
 
+from clickhouse_driver import Client
+from confluent_kafka import Producer
 from ibapi.client import EClient
 from ibapi.contract import Contract
 from ibapi.order import *
 from ibapi.wrapper import EWrapper
+from kafka import producer
 
+clickhouse_host = ''
+clickhouse_user = "default"
+clickhouse_pwd = ""
+clickhouse_db = 'default'
+
+symbol = "NVDA"
+topic = "stock-nvda"
+# 创建生产者配置
+conf = {
+    'bootstrap.servers': 'www.aixohub.com:9092'  # Kafka 服务器地址
+
+}
 
 class IBapi(EWrapper, EClient):
     def __init__(self):
         EClient.__init__(self, self)
+        self.clickHouseClient = Client(host=clickhouse_host, user=clickhouse_user, password=clickhouse_pwd,
+                                       database=clickhouse_db)
+        self.producer = Producer(conf)
 
     def nextValidId(self, orderId: int):
         super().nextValidId(orderId)
@@ -32,10 +50,17 @@ class IBapi(EWrapper, EClient):
 
     def tickByTickBidAsk(self, reqId, time, bidPrice, askPrice, bidSize, askSize, tickAttribBidAsk):
         tickerId = reqId
-        print("BidAsk. ReqId:", reqId, "Time:", datetime.datetime.fromtimestamp(time).strftime("%Y%m%d-%H:%M:%S"),
+        ts = datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S")
+        sql = f"""INSERT INTO stock_nvda (symbol, datetime,  open, close, volume, bidPrice, bidSize, askPrice, askSize) VALUES
+                ('{symbol}', '{ts}',{bidPrice},{askPrice},{bidSize},{bidPrice},{bidSize},{askPrice},{askSize}); """
+        print("BidAsk. ReqId:", reqId, "Time:", datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S"),
               "BidPrice:", floatMaxString(bidPrice), "AskPrice:", floatMaxString(askPrice), "BidSize:",
               decimalMaxString(bidSize), "AskSize:", decimalMaxString(askSize),
               "BidPastLow:", tickAttribBidAsk.bidPastLow, "AskPastHigh:", tickAttribBidAsk.askPastHigh)
+        json_bytes = sql.encode('utf-8')
+        self.producer.produce(topic, key='key344', value=json_bytes)
+
+
 
 
 def run_loop():
@@ -53,13 +78,7 @@ if __name__ == '__main__':
     # Start the socket in a thread
     api_thread = threading.Thread(target=run_loop, daemon=True)
     api_thread.start()
-    contract1 = {
-        "conId": "12",
-        "symbol": "NVDA",
-        "secType": 'STK',
-        "exchange": 'SMART',
-        "currency": 'USD'
-    }
+
     contract = Contract()
     contract.symbol = "NVDA"
     contract.secType = "STK"
@@ -77,5 +96,6 @@ if __name__ == '__main__':
     app.reqTickByTickData(app.nextorderId, contract, "BidAsk", 0, True)
     # Check if the API is connected via orderid
 
-    time.sleep(20)
+    time.sleep(3600)
     app.disconnect()
+    client.disconnect()
