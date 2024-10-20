@@ -14,7 +14,7 @@ cd twsapi_macunix.1031.01/IBJts/source/pythonclient
 
 python setup.py install
  
-cdpip show ibapi
+pip show ibapi
 ```
 
 ## btplotting
