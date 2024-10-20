@@ -40,7 +40,7 @@ if __name__ == '__main__':
     # Request historical candles
     app.reqHistoricalData(1, eurusd_contract, '', '2 D', '1 hour', 'MIDPOINT', 0, 2, False, [])
 
-    time.sleep(5)  # sleep to allow enough time for data to be returned
+    time.sleep(20)  # sleep to allow enough time for data to be returned
 
     # Working with Pandas DataFrames
     import pandas

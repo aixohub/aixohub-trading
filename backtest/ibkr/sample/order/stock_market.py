@@ -8,7 +8,6 @@ from ibapi.client import EClient
 from ibapi.contract import Contract
 from ibapi.order import *
 from ibapi.wrapper import EWrapper
-from kafka import producer
 
 clickhouse_host = ''
 clickhouse_user = "default"
@@ -71,7 +70,7 @@ def run_loop():
 
 if __name__ == '__main__':
     app = IBapi()
-    app.connect('127.0.0.1', 4001, 12)
+    app.connect('127.0.0.1', 4000, 12)
 
     app.nextorderId = None
 
@@ -98,4 +97,3 @@ if __name__ == '__main__':
 
     time.sleep(3600)
     app.disconnect()
-    client.disconnect()

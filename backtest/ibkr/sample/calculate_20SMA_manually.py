@@ -22,7 +22,7 @@ def run_loop():
 
 
 app = IBapi()
-app.connect('127.0.0.1', 7497, 126)
+app.connect('127.0.0.1', 4001, 126)
 
 # Start the socket in a thread
 api_thread = threading.Thread(target=run_loop, daemon=True)
@@ -40,7 +40,7 @@ eurusd_contract.currency = 'USD'
 # Request historical candles
 app.reqHistoricalData(1, eurusd_contract, '', '2 D', '1 hour', 'MIDPOINT', 0, 1, False, [])
 
-time.sleep(5)  # sleep to allow enough time for data to be returned
+time.sleep(20)  # sleep to allow enough time for data to be returned
 
 ### Calculate 20 SMA without a library
 total = 0

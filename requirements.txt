@@ -1,4 +1,12 @@
 pandas
+pathlib
+tqdm
+matplotlib
+pandas_datareader
+seaborn
+statsmodels
+scikit-learn
+# TA-Lib
 futu-api
 clickhouse-driver
 confluent-kafka
