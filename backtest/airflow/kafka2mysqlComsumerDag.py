@@ -20,6 +20,21 @@ c = Consumer({
     'auto.offset.reset': 'earliest'
 })
 
+load_dotenv()
+mysql_host = os.environ.get("mysql_host")
+mysql_user = os.environ.get("mysql_user")
+mysql_passwd = os.environ.get("mysql_passwd")
+stock_topic = os.environ.get("stock_topic")
+mysql_database = os.environ.get("mysql_database")
+
+mysql_conn = mysql.connector.connect(
+    host=mysql_host,
+    port=3306,
+    user=mysql_user,
+    password=mysql_passwd, database=mysql_database)
+cursor = mysql_conn.cursor()
+
+
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
@@ -36,30 +51,11 @@ with DAG(
         tags=["ibkr", "backtrader"],
 ) as dag:
     def init_env(**kwargs):
-        load_dotenv()
-        mysql_host = os.environ.get("mysql_host")
-        mysql_user = os.environ.get("mysql_user")
-        mysql_passwd = os.environ.get("mysql_passwd")
-        stock_topic = os.environ.get("stock_topic")
-        mysql_database = os.environ.get("mysql_database")
-
-        mysql_conn = mysql.connector.connect(
-            host=mysql_host,
-            port=3306,
-            user=mysql_user,
-            password=mysql_passwd, database=mysql_database)
-        kwargs['ti'].xcom_push(key='mysql_conn', value=mysql_conn)
-        kwargs['ti'].xcom_push(key='stock_topic', value=stock_topic)
-
+        logger.info("init_env starting... ")
 
     def run_task(**kwargs):
         logger.info("Backtrader starting... ")
-        mysql_conn = kwargs['ti'].xcom_pull(key='mysql_conn', task_ids='env_init')
-        stock_topic = kwargs['ti'].xcom_pull(key='stock_topic', task_ids='env_init')
         c.subscribe([stock_topic])
-        cursor = mysql_conn.cursor()
-        kwargs['ti'].xcom_push(key='cursor', value=stock_topic)
-
         while True:
             msg = c.poll(1.0)
 
@@ -79,8 +75,6 @@ with DAG(
 
     def close_env(**kwargs):
         logger.info("Backtrader stopping...")
-        cursor = kwargs['ti'].xcom_pull(key='cursor', task_ids='env_init')
-        mysql_conn = kwargs['ti'].xcom_pull(key='mysql_conn', task_ids='env_init')
         cursor.close()
         mysql_conn.close()
         c.close()
@@ -97,6 +91,7 @@ with DAG(
     env_init = PythonOperator(
         task_id='env_init',
         python_callable=init_env,
+        trigger_rule='all_done',
         provide_context=True,
     )
 
@@ -111,6 +106,7 @@ with DAG(
     env_close = PythonOperator(
         task_id='env_close',
         python_callable=close_env,
+        trigger_rule='all_done',
         provide_context=True,
     )
 

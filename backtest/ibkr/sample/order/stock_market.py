@@ -71,7 +71,7 @@ def run_loop():
 
 if __name__ == '__main__':
     app = IBapi()
-    app.connect('127.0.0.1', 4000, 12)
+    app.connect('127.0.0.1', 4001, 12)
 
     app.nextorderId = None
 
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     api_thread.start()
 
     contract = Contract()
-    contract.symbol = "NVDA"
+    contract.symbol = symbol
     contract.secType = "STK"
     contract.exchange = "SMART"
     contract.currency = "USD"
