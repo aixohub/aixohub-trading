@@ -16,6 +16,7 @@ clickhouse_db = 'default'
 
 symbol = "NVDA"
 topic = "stock-nvda"
+tableName = "stock_nvda"
 # 创建生产者配置
 conf = {
     'bootstrap.servers': 'www.aixohub.com:9092'  # Kafka 服务器地址
@@ -50,7 +51,7 @@ class IBapi(EWrapper, EClient):
     def tickByTickBidAsk(self, reqId, time, bidPrice, askPrice, bidSize, askSize, tickAttribBidAsk):
         tickerId = reqId
         ts = datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S")
-        sql = f"""INSERT INTO stock_nvda (symbol, datetime,  open, close, volume, bidPrice, bidSize, askPrice, askSize) VALUES
+        sql = f"""INSERT INTO {tableName} (symbol, datetime,  open, close, volume, bidPrice, bidSize, askPrice, askSize) VALUES
                 ('{symbol}', '{ts}',{bidPrice},{askPrice},{bidSize},{bidPrice},{bidSize},{askPrice},{askSize}); """
         print("BidAsk. ReqId:", reqId, "Time:", datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S"),
               "BidPrice:", floatMaxString(bidPrice), "AskPrice:", floatMaxString(askPrice), "BidSize:",

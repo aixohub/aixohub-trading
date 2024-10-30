@@ -10,4 +10,6 @@ scikit-learn
 futu-api
 clickhouse-driver
 confluent-kafka
+python-dotenv
+mysql-connector-python
 git+https://github.com/happydasch/btplotting
