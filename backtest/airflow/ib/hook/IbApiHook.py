@@ -1,3 +1,4 @@
+import queue
 from datetime import datetime
 from typing import Any
 
@@ -10,8 +11,9 @@ from ibapi.wrapper import EWrapper
 
 
 class IBClient(EWrapper, EClient):
-    def __init__(self):
+    def __init__(self, data_queue):
         EClient.__init__(self, self)
+        self.data_queue = data_queue
 
     def nextValidId(self, orderId: int):
         super().nextValidId(orderId)
@@ -34,10 +36,18 @@ class IBClient(EWrapper, EClient):
     def tickByTickBidAsk(self, reqId, time, bidPrice, askPrice, bidSize, askSize, tickAttribBidAsk):
         tickerId = reqId
         ts = datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S")
-        print("BidAsk. ReqId:", reqId, "Time:", datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S"),
-              "BidPrice:", floatMaxString(bidPrice), "AskPrice:", floatMaxString(askPrice), "BidSize:",
-              decimalMaxString(bidSize), "AskSize:", decimalMaxString(askSize),
-              "BidPastLow:", tickAttribBidAsk.bidPastLow, "AskPastHigh:", tickAttribBidAsk.askPastHigh)
+        data = {
+            "ReqId": reqId,
+            "Time": datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S"),
+            "BidPrice": floatMaxString(bidPrice),
+            "AskPrice": floatMaxString(askPrice),
+            "BidSize": decimalMaxString(bidSize),
+            "AskSize": decimalMaxString(askSize),
+            "BidPastLow": tickAttribBidAsk.bidPastLow,
+            "AskPastHigh": tickAttribBidAsk.askPastHigh
+        }
+
+        self.data_queue.put(data)
 
 
 class IbApiHook(BaseHook):
@@ -50,7 +60,8 @@ class IbApiHook(BaseHook):
         """Initialize our Base."""
         super().__init__()
         self.ib_config_id = ib_config_id
-        self.client = IBClient()
+        self.data_queue = queue.Queue()
+        self.client = IBClient(data_queue=self.data_queue)
 
     @cached_property
     def get_conn(self) -> Any:
@@ -78,4 +89,3 @@ class IbApiHook(BaseHook):
 
     def run_loop(self):
         self.client.run()
-

@@ -93,7 +93,7 @@ class Ib2KafkaOperator(BaseOperator):
         api_thread.start()
 
         contract = Contract()
-        contract.symbol = symbol
+        contract.symbol = ""
         contract.secType = "STK"
         contract.exchange = "SMART"
         contract.currency = "USD"
@@ -108,11 +108,20 @@ class Ib2KafkaOperator(BaseOperator):
         ib_client.nextValidId(1)
         ib_client.reqTickByTickData(ib_client.nextorderId, contract, "BidAsk", 0, True)
 
-        # For each returned k/v in the callable : publish and flush if needed.
-        for k, v in producer_callable():
-            producer.produce(self.topic, key=k, value=v, on_delivery=self.delivery_callback)
-            producer.poll(self.poll_timeout)
-            if self.synchronous:
-                producer.flush()
+        try:
+            while True:
+                data = ib_hook.data_queue.get(timeout=10)  # 等待数据，超时时间可调
+                self.process_data(data, producer)
+                ib_hook.data_queue.task_done()
+        except ib_hook.data_queue.Empty:
+            self.log.info("No more data in queue; ending operation.")
 
         producer.flush()
+
+    def process_data(self, data, producer):
+        """
+        自定义数据处理逻辑，例如将数据保存到数据库、文件或其他系统
+        """
+        self.log.info(f"Processing data: {data}")
+        producer.produce(self.topic, key="", value=data, on_delivery=self.delivery_callback)
+        producer.poll(self.poll_timeout)
