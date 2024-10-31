@@ -39,6 +39,8 @@ default_args = {
 
 
 def load_connections():
+    logger.info("load_connections %s", "...")
+    logger.info("model-path %s", get_module())
     from airflow.models import Connection
     from airflow.utils import db
     db.merge_conn(
@@ -88,12 +90,18 @@ def hello_kafka():
     return
 
 
+def get_module():
+    import importlib
+    module = importlib.import_module(__name__)
+    return module.__name__
+
+
 with DAG(
-        'kafka_to_mysql_consumer_01',
+        'kafka_to_mysql_consumer_03',
         default_args=default_args,
         description='US market data save to mysql',
         schedule_interval='@daily',
-        start_date=datetime(2024, 10, 29),
+        start_date=datetime(2024, 10, 30),
         tags=["ibkr", "backtrader"],
 ) as dag:
     t0 = PythonOperator(task_id="load_connections", python_callable=load_connections)
@@ -103,7 +111,7 @@ with DAG(
         task_id="consume_from_topic_2_b",
         topics=["stock-nvda"],
         apply_function_batch=functools.partial(consumer_function_batch, prefix="consumed:::"),
-        commit_cadence="end_of_batch",
+        poll_timeout=300,
         max_messages=300,
         max_batch_size=100,
     )
@@ -112,8 +120,8 @@ with DAG(
         kafka_config_id="t4",
         task_id="awaiting_message",
         topics=["stock-nvda"],
-        apply_function="__main__.await_function",
-        event_triggered_function=functools.partial(wait_for_event),
+        apply_function=get_module() + ".await_function",
+        event_triggered_function=wait_for_event,
     )
 
     t6 = PythonOperator(task_id="hello_kafka", python_callable=hello_kafka)

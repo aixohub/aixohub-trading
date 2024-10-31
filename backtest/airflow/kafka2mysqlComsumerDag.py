@@ -14,27 +14,6 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-c = Consumer({
-    'bootstrap.servers': 'www.aixohub.com:9092',
-    'group.id': 'mygroup',
-    'auto.offset.reset': 'earliest'
-})
-
-load_dotenv()
-mysql_host = os.environ.get("mysql_host")
-mysql_user = os.environ.get("mysql_user")
-mysql_passwd = os.environ.get("mysql_passwd")
-stock_topic = os.environ.get("stock_topic")
-mysql_database = os.environ.get("mysql_database")
-
-mysql_conn = mysql.connector.connect(
-    host=mysql_host,
-    port=3306,
-    user=mysql_user,
-    password=mysql_passwd, database=mysql_database)
-cursor = mysql_conn.cursor()
-
-
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
@@ -42,74 +21,101 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
 }
 
-with DAG(
-        'kafka_to_mysql_consumer',
-        default_args=default_args,
-        description='US market data save to mysql',
-        schedule_interval='@daily',
-        start_date=datetime(2024, 10, 29),
-        tags=["ibkr", "backtrader"],
-) as dag:
-    def init_env(**kwargs):
-        logger.info("init_env starting... ")
+# 定义全局变量以存储 Kafka 和 MySQL 连接
+kafka_consumer = Consumer({
+    'bootstrap.servers': 'www.aixohub.com:9092',
+    'group.id': 'mygroup',
+    'auto.offset.reset': 'earliest'
+})
+load_dotenv()
+mysql_host = os.environ.get("mysql_host")
+mysql_user = os.environ.get("mysql_user")
+mysql_passwd = os.environ.get("mysql_passwd")
 
-    def run_task(**kwargs):
-        logger.info("Backtrader starting... ")
-        c.subscribe([stock_topic])
-        while True:
-            msg = c.poll(1.0)
+mysql_database = os.environ.get("mysql_database")
 
-            if msg is None:
-                continue
-            if msg.error():
-                print("Consumer error: {}".format(msg.error()))
-                continue
-            sql = msg.value().decode('utf-8')
-            try:
-                cursor.execute(sql)
-                mysql_conn.commit()
-            except:
-                pass
-            print('Received message: {}'.format(sql))
+mysql_connection = mysql.connector.connect(
+    host=mysql_host,
+    port=3306,
+    user=mysql_user,
+    password=mysql_passwd, database=mysql_database)
+
+cursor = mysql_connection.cursor()
+
+dag = DAG(
+    'kafka_to_mysql_01',
+    default_args=default_args,
+    description='Kafka to MySQL DAG with global connections',
+    schedule_interval='@daily',
+    start_date=datetime(2024, 10, 29),
+    tags=["ibkr", "backtrader"],
+)
 
 
-    def close_env(**kwargs):
-        logger.info("Backtrader stopping...")
+def init_env():
+    global kafka_consumer, mysql_connection
+    logger.info("init_env starting... ")
+
+
+def run_task(**kwargs):
+    logger.info("Backtrader starting... ")
+    global kafka_consumer, mysql_connection
+
+    stock_topic = os.environ.get("stock_topic")
+    kafka_consumer.subscribe([stock_topic])
+    while True:
+        msg = kafka_consumer.poll(1.0)
+
+        if msg is None:
+            continue
+        if msg.error():
+            print("Consumer error: {}".format(msg.error()))
+            continue
+        sql = msg.value().decode('utf-8')
+        try:
+            cursor.execute(sql)
+            mysql_connection.commit()
+        except:
+            pass
+        print('Received message: {}'.format(sql))
+
+
+def close_env():
+    global kafka_consumer, mysql_connection
+
+    logger.info("Backtrader stopping...")
+    if cursor:
         cursor.close()
-        mysql_conn.close()
-        c.close()
-        logger.info("Backtrader stopped...")
+    if mysql_connection:
+        mysql_connection.close()
+    if kafka_consumer:
+        kafka_consumer.close()
+    logger.info("Backtrader stopped...")
 
 
-    branch_workday = BranchDayOfWeekOperator(
-        task_id="judge_workday",
-        follow_task_ids_if_true="branch_true",
-        follow_task_ids_if_false="branch_false",
-        week_day={WeekDay.MONDAY, WeekDay.TUESDAY, WeekDay.WEDNESDAY, WeekDay.THURSDAY, WeekDay.FRIDAY},
-    )
+branch_workday = BranchDayOfWeekOperator(
+    task_id="judge_workday",
+    follow_task_ids_if_true="branch_true",
+    follow_task_ids_if_false="branch_false",
+    week_day={WeekDay.MONDAY, WeekDay.TUESDAY, WeekDay.WEDNESDAY, WeekDay.THURSDAY, WeekDay.FRIDAY},
+    dag=dag,
+)
 
-    env_init = PythonOperator(
-        task_id='env_init',
-        python_callable=init_env,
-        trigger_rule='all_done',
-        provide_context=True,
-    )
+run_task = PythonOperator(
+    task_id='run_task',
+    python_callable=run_task,
+    execution_timeout=timedelta(hours=8),
+    trigger_rule='all_done',
+    provide_context=True,
+    dag=dag,
+)
 
-    run_task = PythonOperator(
-        task_id='run_task',
-        python_callable=run_task,
-        execution_timeout=timedelta(hours=8),
-        trigger_rule='all_done',
-        provide_context=True,
-    )
+env_close = PythonOperator(
+    task_id='env_close',
+    python_callable=close_env,
+    trigger_rule='all_done',
+    provide_context=True,
+    dag=dag,
+)
 
-    env_close = PythonOperator(
-        task_id='env_close',
-        python_callable=close_env,
-        trigger_rule='all_done',
-        provide_context=True,
-    )
-
-    weekend_task = EmptyOperator(task_id="branch_weekend")
-
-    branch_workday >> [env_init >> run_task >> env_close, weekend_task]
+run_task >> env_close
