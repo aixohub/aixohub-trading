@@ -65,7 +65,7 @@ def consumer_function(message, prefix=None):
     return
 
 
-def consumer_function_batch(messages, prefix=None, tableName=None):
+def consumer_function_batch(messages, prefix=None):
     for message in messages:
         key = message.key()
         value = message.value().decode('utf-8')
@@ -76,6 +76,7 @@ def consumer_function_batch(messages, prefix=None, tableName=None):
         askSize = v['askSize']
         bidPrice = v['bidPrice']
         askPrice = v['askPrice']
+        tableName = 'stock_{}'.format(symbol)
         sql = f"""INSERT INTO {tableName} (symbol, datetime,  open, close, volume, bidPrice, bidSize, askPrice, askSize) VALUES
                         ('{symbol}', '{datetime}',{bidPrice},{askPrice},{bidSize},{bidPrice},{bidSize},{askPrice},{askSize}); """
         try:
@@ -115,7 +116,7 @@ def get_module():
 
 
 with DAG(
-        'kafka_to_mysql_consumer_05',
+        'kafka_to_mysql_05',
         default_args=default_args,
         description='US market data save to mysql',
         schedule_interval='@daily',
@@ -127,7 +128,7 @@ with DAG(
     t4b = ConsumeFromTopicOperator(
         kafka_config_id="t4",
         task_id="consume_from_topic_2_b",
-        topics=["stock-nvda"],
+        topics=["stock-nasdaq"],
         apply_function_batch=functools.partial(consumer_function_batch, prefix="consumed:::"),
         poll_timeout=300,
         max_batch_size=100,
