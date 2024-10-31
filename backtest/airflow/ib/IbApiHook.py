@@ -38,7 +38,7 @@ class IBClient(EWrapper, EClient):
         ts = datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S")
         data = {
             "ReqId": reqId,
-            "Time": datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S"),
+            "datetime": datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S"),
             "BidPrice": floatMaxString(bidPrice),
             "AskPrice": floatMaxString(askPrice),
             "BidSize": decimalMaxString(bidSize),
@@ -53,7 +53,7 @@ class IBClient(EWrapper, EClient):
 class IbApiHook(BaseHook):
     conn_name_attr = "ib_config_id"
     default_conn_name = "ib_default"
-    conn_type = "IB api"
+    conn_type = "ibapi"
     hook_name = "interactive brokers"
 
     def __init__(self, ib_config_id=default_conn_name, *args, **kwargs):

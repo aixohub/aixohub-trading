@@ -65,12 +65,21 @@ def consumer_function(message, prefix=None):
     return
 
 
-def consumer_function_batch(messages, prefix=None):
+def consumer_function_batch(messages, prefix=None, tableName=None):
     for message in messages:
         key = message.key()
         value = message.value().decode('utf-8')
+        v = json.loads(value)
+        datetime = v['datetime']
+        symbol = v['symbol']
+        bidSize = v['bidSize']
+        askSize = v['askSize']
+        bidPrice = v['bidPrice']
+        askPrice = v['askPrice']
+        sql = f"""INSERT INTO {tableName} (symbol, datetime,  open, close, volume, bidPrice, bidSize, askPrice, askSize) VALUES
+                        ('{symbol}', '{datetime}',{bidPrice},{askPrice},{bidSize},{bidPrice},{bidSize},{askPrice},{askSize}); """
         try:
-            cursor.execute(value)
+            cursor.execute(sql)
             mysql_connection.commit()
         except:
             logger.info("consumer_function_batch error ")
@@ -123,8 +132,6 @@ with DAG(
         poll_timeout=300,
         max_batch_size=100,
     )
-
-
 
 
     t6 = PythonOperator(task_id="hello_kafka", python_callable=hello_kafka)

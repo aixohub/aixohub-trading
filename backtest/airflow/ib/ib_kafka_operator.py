@@ -13,10 +13,10 @@ from airflow.providers.apache.kafka.operators.produce import local_logger
 from airflow.utils.module_loading import import_string
 from ibapi.contract import Contract
 
-from backtest.airflow.ib.hook.IbApiHook import IbApiHook
+from backtest.airflow.ib.IbApiHook import IbApiHook
 
 if TYPE_CHECKING:
-    from airflow.utils.context import Context, context_merge
+    from airflow.utils.context import Context
 
 
 def acked(err, msg):
@@ -45,7 +45,8 @@ class Ib2KafkaOperator(BaseOperator):
             delivery_callback: str | None = None,
             synchronous: bool = True,
             poll_timeout: float = 0,
-            ib_config_id: str = "ibkr_default",
+            ib_config_id: str = "ib_default",
+            ib_symbol: str | None = None,
             show_return_value_in_logs: bool = True,
             **kwargs,
     ) -> None:
@@ -64,6 +65,7 @@ class Ib2KafkaOperator(BaseOperator):
         self.poll_timeout = poll_timeout
 
         self.ib_config_id = ib_config_id
+        self.ib_symbol = ib_symbol
 
         if not (self.topic and self.producer_function):
             raise AirflowException(
@@ -93,14 +95,13 @@ class Ib2KafkaOperator(BaseOperator):
         api_thread.start()
 
         contract = Contract()
-        contract.symbol = ""
+        contract.symbol = self.ib_symbol
         contract.secType = "STK"
         contract.exchange = "SMART"
         contract.currency = "USD"
         while True:
             if isinstance(ib_client.nextorderId, int):
-                print('connected')
-                print()
+                print('------connected------')
                 break
             else:
                 print('waiting for connection')
@@ -109,19 +110,24 @@ class Ib2KafkaOperator(BaseOperator):
         ib_client.reqTickByTickData(ib_client.nextorderId, contract, "BidAsk", 0, True)
 
         try:
+            msg_count = 1
             while True:
                 data = ib_hook.data_queue.get(timeout=10)  # 等待数据，超时时间可调
-                self.process_data(data, producer)
+                self.process_data(data, msg_count, producer)
+                msg_count = +1
                 ib_hook.data_queue.task_done()
         except ib_hook.data_queue.Empty:
             self.log.info("No more data in queue; ending operation.")
 
         producer.flush()
 
-    def process_data(self, data, producer):
+    def process_data(self, data, msg_count, producer):
         """
         自定义数据处理逻辑，例如将数据保存到数据库、文件或其他系统
         """
         self.log.info(f"Processing data: {data}")
-        producer.produce(self.topic, key="", value=data, on_delivery=self.delivery_callback)
+        data['symbol'] =self.ib_symbol
+        producer.produce(self.topic, key="1", value=data, on_delivery=self.delivery_callback)
         producer.poll(self.poll_timeout)
+        if msg_count % 20 == 0:
+            producer.flush()
