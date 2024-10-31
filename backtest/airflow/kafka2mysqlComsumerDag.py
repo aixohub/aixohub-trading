@@ -93,13 +93,7 @@ def close_env():
     logger.info("Backtrader stopped...")
 
 
-branch_workday = BranchDayOfWeekOperator(
-    task_id="judge_workday",
-    follow_task_ids_if_true="branch_true",
-    follow_task_ids_if_false="branch_false",
-    week_day={WeekDay.MONDAY, WeekDay.TUESDAY, WeekDay.WEDNESDAY, WeekDay.THURSDAY, WeekDay.FRIDAY},
-    dag=dag,
-)
+
 
 run_task = PythonOperator(
     task_id='run_task',

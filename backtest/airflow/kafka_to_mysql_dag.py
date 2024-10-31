@@ -11,7 +11,6 @@ import mysql.connector
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.apache.kafka.operators.consume import ConsumeFromTopicOperator
-from airflow.providers.apache.kafka.sensors.kafka import AwaitMessageTriggerFunctionSensor
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -23,12 +22,12 @@ mysql_passwd = os.environ.get("mysql_passwd")
 stock_topic = os.environ.get("stock_topic")
 mysql_database = os.environ.get("mysql_database")
 
-mysql_conn = mysql.connector.connect(
+mysql_connection = mysql.connector.connect(
     host=mysql_host,
     port=3306,
     user=mysql_user,
     password=mysql_passwd, database=mysql_database)
-cursor = mysql_conn.cursor()
+cursor = mysql_connection.cursor()
 
 default_args = {
     'owner': 'airflow',
@@ -70,6 +69,12 @@ def consumer_function_batch(messages, prefix=None):
     for message in messages:
         key = message.key()
         value = message.value().decode('utf-8')
+        try:
+            cursor.execute(value)
+            mysql_connection.commit()
+        except:
+            logger.info("consumer_function_batch error ")
+            pass
         logger.info("%s %s @ %s; %s : %s", prefix, message.topic(), message.offset(), key, value)
 
 
@@ -87,6 +92,10 @@ def wait_for_event(message, **context):
 
 def hello_kafka():
     print("Hello Kafka !")
+    if cursor:
+        cursor.close()
+    if mysql_connection:
+        mysql_connection.close()
     return
 
 
@@ -97,7 +106,7 @@ def get_module():
 
 
 with DAG(
-        'kafka_to_mysql_consumer_03',
+        'kafka_to_mysql_consumer_05',
         default_args=default_args,
         description='US market data save to mysql',
         schedule_interval='@daily',
@@ -112,18 +121,12 @@ with DAG(
         topics=["stock-nvda"],
         apply_function_batch=functools.partial(consumer_function_batch, prefix="consumed:::"),
         poll_timeout=300,
-        max_messages=300,
         max_batch_size=100,
     )
 
-    t5 = AwaitMessageTriggerFunctionSensor(
-        kafka_config_id="t4",
-        task_id="awaiting_message",
-        topics=["stock-nvda"],
-        apply_function=get_module() + ".await_function",
-        event_triggered_function=wait_for_event,
-    )
+
+
 
     t6 = PythonOperator(task_id="hello_kafka", python_callable=hello_kafka)
 
-    t0 >> [t4b] >> t5 >> t6
+    t0 >> [t4b]  >> t6
