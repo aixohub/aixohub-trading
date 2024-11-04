@@ -41,7 +41,7 @@ except ImportError:
 try:
     from .futudata import FutuData
 except ImportError:
-    print("Oops, no futures data available.")
+    print("Oops, no futu data available.")
     pass  # The user may not have something installed
 
 try:

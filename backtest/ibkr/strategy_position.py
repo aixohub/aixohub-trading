@@ -18,6 +18,21 @@ class PriceChange(bt.Indicator):
         self.lines.price_change[0] = self.data.close[0] - self.data.close[-self.p.period]
 
 
+class OrderFlowImbalance(bt.Indicator):
+    lines = ('order_flow_imbalance',)
+    params = (('period', 10),)
+
+    def __init__(self):
+        self.addminperiod(self.params.window)
+        self.buy_volume = bt.indicators.SimpleMovingAverage(self.data.bidSize, period=self.params.period)
+        self.sell_volume = bt.indicators.SimpleMovingAverage(self.data.askSize, period=self.params.period)
+
+    def next(self):
+        total_volume = self.bidSize[0] + self.sell_volume[0]
+        self.lines.order_flow_imbalance[0] = (self.buy_volume[0] - self.sell_volume[
+            0]) / total_volume if total_volume != 0 else 0
+
+
 class Acceleration(bt.Indicator):
     lines = ('acceleration',)
     params = (('period', 10),)
