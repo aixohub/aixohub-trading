@@ -14,9 +14,9 @@ clickhouse_user = "default"
 clickhouse_pwd = ""
 clickhouse_db = 'default'
 
-symbol = "OKLO"
+symbol = "NVDA"
 topic = "stock-nvda"
-tableName = "stock_oklo"
+tableName = "stock_nvda"
 # 创建生产者配置
 conf = {
     'bootstrap.servers': 'www.aixohub.com:9092'  # Kafka 服务器地址
