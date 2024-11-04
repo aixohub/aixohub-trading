@@ -37,7 +37,6 @@ class VolumeMomentum(bt.Indicator):
 
     def __init__(self):
         self.addminperiod(self.params.period)
-        pass
 
     def next(self):
         self.lines.volume_momentum[0] = self.data.volume[0] - self.data.volume[-self.p.period]
@@ -110,7 +109,6 @@ class IBKRPositionInitStrategy(bt.Strategy):
         self.volume_momentum = VolumeMomentum(period=self.p.volume_momentum_period)
         self.acceleration = Acceleration(period=self.p.acceleration_period)
         self.vwap = VWAP(period=self.p.vwap_period)
-        self.high_low_spread = HighLowSpread()
         self.block_trade_indicator = BlockTradeIndicator(threshold=self.p.block_trade_threshold)
 
         # 使用Simple Moving Average作为均值回归的基础
@@ -121,8 +119,11 @@ class IBKRPositionInitStrategy(bt.Strategy):
         date = num2date(self.data.datetime[0])
         acceleration = self.acceleration[0]
         symbol = self.data.contract.localSymbol
+        buy_condition_1 = self.price_change[0] > 0 and self.volume_momentum[0] > 0
+        buy_condition_2 = self.data.close[0] > self.vwap[0] and self.data.close[0] > self.sma[0]
+        buy_condition_3 = self.acceleration[0] > 0
         print(
-            f"""symbol: {symbol} time : {date} acceleration : {acceleration:.2f}  price_change:{self.price_change[0]:.2f}  volume_momentum:{self.volume_momentum[0]:.2f}  vwap:{self.vwap[0]:.2f} askPrice : {self.data.askPrice[0]}  bidPrice : {self.data.bidPrice[0]}  askSize : {self.data.askSize[0]} bidSize : {self.data.bidSize[0]}  """)
+            f"""symbol: {symbol} time : {date}  buy1:{buy_condition_1} buy2:{buy_condition_2} buy3:{buy_condition_3}  price_change:{self.price_change[0]:.2f}  volume_momentum:{self.volume_momentum[0]:.2f}  vwap:{self.vwap[0]:.2f}  sma:{self.sma[0]:.2f} acceleration : {acceleration:.2f}  askPrice : {self.data.askPrice[0]}  bidPrice : {self.data.bidPrice[0]}  askSize : {self.data.askSize[0]} bidSize : {self.data.bidSize[0]}  """)
         # self.buy(data=self.data, symbol='nvda', size=1, price=100)
         # self.sell(data=self.data, symbol='nvda', size=1, price=100)
         # self.close()
@@ -131,10 +132,10 @@ class IBKRPositionInitStrategy(bt.Strategy):
             # 价格变动和成交量都显示出动量的上升趋势
             if self.data.close[0] > self.vwap[0] and self.data.close[0] > self.sma[0]:
                 # 当前价格在VWAP和均值之上，可能处于上升趋势
-                if self.acceleration[0] > 0 and self.high_low_spread[0] < 0.5:
+                if self.acceleration[0] > 0:
                     # 动量加速，并且波动率较低（避免追高风险）
                     # self.buy()
-                    self.log("buy  price: {self.data.askPrice[0]}  ")
+                    self.log(f"buy  price: {self.data.askPrice[0]}  ")
 
         # 卖出信号
         if self.price_change[0] < 0 and self.volume_momentum[0] < 0:
