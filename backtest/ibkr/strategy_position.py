@@ -191,7 +191,7 @@ if __name__ == '__main__':
     }
 
     contract = {
-        "code": "NVDA",
+        "code": "MSTR",
         "secType": "STK",
         "what": "BID_ASK",
         "exchange": "SMART",

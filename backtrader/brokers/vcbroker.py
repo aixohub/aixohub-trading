@@ -346,7 +346,7 @@ class VCBroker(with_metaclass(MetaVCBroker, BrokerBase)):
     #
     def __call__(self, trader):
         # Called to start the process, call in sub-thread. only the passed
-        # trader can be used in the thread
+        # account can be used in the thread
         self.trader = trader
 
         for acc in trader.Accounts:
