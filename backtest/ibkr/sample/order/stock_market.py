@@ -1,4 +1,5 @@
 import datetime
+import json
 import threading
 import time
 
@@ -53,12 +54,22 @@ class IBapi(EWrapper, EClient):
         ts = datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S")
         sql = f"""INSERT INTO {tableName} (symbol, datetime,  open, close, volume, bidPrice, bidSize, askPrice, askSize) VALUES
                 ('{symbol}', '{ts}',{bidPrice},{askPrice},{bidSize},{bidPrice},{bidSize},{askPrice},{askSize}); """
+        json_bytes = sql.encode('utf-8')
+
         print("BidAsk. ReqId:", reqId, "Time:", datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S"),
-              "BidPrice:", floatMaxString(bidPrice), "AskPrice:", floatMaxString(askPrice), "BidSize:",
+              "bidPrice:", floatMaxString(bidPrice), "AskPrice:", floatMaxString(askPrice), "BidSize:",
               decimalMaxString(bidSize), "AskSize:", decimalMaxString(askSize),
               "BidPastLow:", tickAttribBidAsk.bidPastLow, "AskPastHigh:", tickAttribBidAsk.askPastHigh)
-        json_bytes = sql.encode('utf-8')
-        self.producer.produce(topic, key='key344', value=json_bytes)
+        ticket_data = {
+            'symbol': symbol,
+            'datetime': datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S"),
+            'bidPrice': floatMaxString(bidPrice),
+            'askPrice': floatMaxString(askPrice),
+            'bidSize': floatMaxString(bidSize),
+            'askSize': floatMaxString(askSize)
+        }
+        ticket_data = json.dumps(ticket_data).encode('utf-8')
+        self.producer.produce(topic, key='key344', value=ticket_data)
 
 
 
