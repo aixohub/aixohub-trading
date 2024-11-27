@@ -16,9 +16,6 @@ from datas import *
 
 from scipy.stats import rankdata
 
-pd.options.display.max_rows=5000
-pd.options.display.max_columns=5000
-pd.options.display.width=1000
 
 # region Auxiliary functions
 
@@ -161,7 +158,7 @@ def rank(df):
     :param df: a pandas DataFrame.
     :return: a pandas DataFrame with rank along columns.
     """
-    return df.rank(axis=0, method='min', pct=True)
+    return df.rank(axis=1, method='min', pct=True)
     # return df.rank(pct=True)
 
 
@@ -217,7 +214,7 @@ def min(sr1, sr2):
 
 # endregion
 
-class Alphas101():
+class Alphas101(Alphas):
     def __init__(self, df_data):
         self.open = df_data['open']  # 开盘价
         self.high = df_data['high']  # 最高价
@@ -225,7 +222,7 @@ class Alphas101():
         self.close = df_data['close']  # 收盘价
         self.volume = df_data['volume']  # 成交量
         self.returns = returns(df_data['close'])  # 日收益
-        self.vwap = df_data['close']  # 成交均价
+        self.vwap = df_data['vwap']  # 成交均价
 
     # Alpha#1	 (rank(Ts_ArgMax(SignedPower(((returns < 0) ? stddev(returns, 20) : close), 2.), 5)) -0.5)
     def alpha001(self):
@@ -417,7 +414,7 @@ class Alphas101():
     # Alpha#32	 (scale(((sum(close, 7) / 7) - close)) + (20 * scale(correlation(vwap, delay(close, 5),230))))
     def alpha032(self):
         return scale(((sma(self.close, 7) / 7) - self.close)) + (
-                20 * scale(correlation(self.vwap, delay(self.close, 5), 230)))
+                    20 * scale(correlation(self.vwap, delay(self.close, 5), 230)))
 
     # Alpha#33	 rank((-1 * ((1 - (open / close))^1)))
     def alpha033(self):
@@ -439,10 +436,10 @@ class Alphas101():
     def alpha036(self):
         adv20 = sma(self.volume, 20)
         return (((((2.21 * rank(correlation((self.close - self.open), delay(self.volume, 1), 15))) + (
-                0.7 * rank((self.open - self.close)))) + (
-                          0.73 * rank(ts_rank(delay((-1 * self.returns), 6), 5)))) + rank(
+                    0.7 * rank((self.open - self.close)))) + (
+                              0.73 * rank(ts_rank(delay((-1 * self.returns), 6), 5)))) + rank(
             abs(correlation(self.vwap, adv20, 6)))) + (
-                        0.6 * rank((((sma(self.close, 200) / 200) - self.open) * (self.close - self.open)))))
+                            0.6 * rank((((sma(self.close, 200) / 200) - self.open) * (self.close - self.open)))))
 
     # Alpha#37	 (rank(correlation(delay((open - close), 1), close, 200)) + rank((open - close)))
     def alpha037(self):
@@ -502,7 +499,7 @@ class Alphas101():
     def alpha047(self):
         adv20 = sma(self.volume, 20)
         return ((((rank((1 / self.close)) * self.volume) / adv20) * (
-                (self.high * rank((self.high - self.close))) / (sma(self.high, 5) / 5))) - rank(
+                    (self.high * rank((self.high - self.close))) / (sma(self.high, 5) / 5))) - rank(
             (self.vwap - delay(self.vwap, 5))))
 
     # Alpha#48	 (indneutralize(((correlation(delta(close, 1), delta(delay(close, 1), 1), 250) *delta(close, 1)) / close), IndClass.subindustry) / sum(((delta(close, 1) / delay(close, 1))^2), 250))
@@ -596,7 +593,7 @@ class Alphas101():
     # Alpha#66	 ((rank(decay_linear(delta(vwap, 3.51013), 7.23052)) + Ts_Rank(decay_linear(((((low* 0.96633) + (low * (1 - 0.96633))) - vwap) / (open - ((high + low) / 2))), 11.4157), 6.72611)) * -1)
     def alpha066(self):
         return ((rank(decay_linear(delta(self.vwap, 4), 7)) + ts_rank(decay_linear(((((self.low * 0.96633) + (
-                self.low * (1 - 0.96633))) - self.vwap) / (self.open - ((self.high + self.low) / 2))), 11),
+                    self.low * (1 - 0.96633))) - self.vwap) / (self.open - ((self.high + self.low) / 2))), 11),
                                                                       7)) * -1)
 
     # Alpha#67	 ((rank((high - ts_min(high, 2.14593)))^rank(correlation(IndNeutralize(vwap,IndClass.sector), IndNeutralize(adv20, IndClass.subindustry), 6.02936))) * -1)
@@ -630,7 +627,7 @@ class Alphas101():
     def alpha073(self):
         p1 = rank(decay_linear(delta(self.vwap, 5), 3))
         p2 = ts_rank(decay_linear(((delta(((self.open * 0.147155) + (self.low * (1 - 0.147155))), 2) / (
-                (self.open * 0.147155) + (self.low * (1 - 0.147155)))) * -1), 3), 17)
+                    (self.open * 0.147155) + (self.low * (1 - 0.147155)))) * -1), 3), 17)
         return -1 * max(p1, p2)
         # return (max(rank(decay_linear(delta(self.vwap, 5).to_frame(), 3).CLOSE),ts_rank(decay_linear(((delta(((self.open * 0.147155) + (self.low * (1 - 0.147155))), 2) / ((self.open *0.147155) + (self.low * (1 - 0.147155)))) * -1).to_frame(), 3).CLOSE, 17)) * -1)
 
@@ -678,7 +675,7 @@ class Alphas101():
     # Alpha#83	 ((rank(delay(((high - low) / (sum(close, 5) / 5)), 2)) * rank(rank(volume))) / (((high -low) / (sum(close, 5) / 5)) / (vwap - close)))
     def alpha083(self):
         return ((rank(delay(((self.high - self.low) / (ts_sum(self.close, 5) / 5)), 2)) * rank(rank(self.volume))) / (
-                ((self.high - self.low) / (ts_sum(self.close, 5) / 5)) / (self.vwap - self.close)))
+                    ((self.high - self.low) / (ts_sum(self.close, 5) / 5)) / (self.vwap - self.close)))
 
     # Alpha#84	 SignedPower(Ts_Rank((vwap - ts_max(vwap, 15.3217)), 20.7127), delta(close,4.96796))
     def alpha084(self):
@@ -780,20 +777,15 @@ def start1():
     # ret = Alphas101.generate_alpha_single('alpha096', year, list_assets, "sh000300", True)
     # print(ret)
 
-
 def start2():
-    datas = pd.read_csv("../../datas/stock-NVDA.csv")
-    datas['vwap'] = datas.close / datas.volume / 100
-    datas = pd.DataFrame(datas)
-    al = Alphas101(datas)
-    a001 = al.alpha001()
-    print(a001)
-    a002 = al.alpha002()
-    print(a002)
-    a0045 = al.alpha045()
-    print(a002)
+    datas = pd.read_csv("../../../datas/stock-NVDA.csv")
+    datas
 
 
+    ################ 计算单个 #################
+    # ret = Alphas101.generate_alpha_single('alpha096', year, list_assets, "sh000300", True)
+    # print(ret)
 
 if __name__ == '__main__':
-    start2()
+    start1()
+

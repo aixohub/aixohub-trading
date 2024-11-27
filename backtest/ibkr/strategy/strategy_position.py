@@ -1,6 +1,3 @@
-import backtrader as bt
-from backtest.ibkr.grids import SmaCross
-from backtest.ibkr.grids.strategy_grid import GridStrategy
 from backtrader import num2date
 from backtrader.feeds import IBData
 

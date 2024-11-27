@@ -214,7 +214,7 @@ def alpha001(c, r):
 
 if __name__ == '__main__':
     ohlcv = ['code', 'datetime', 'open', 'high', 'low', 'close', 'volume']
-    data = (pd.read_csv('../datas/stock-NVDA.csv')
+    data = (pd.read_csv('../../datas/stock-NVDA.csv')
             .loc[:, ohlcv + ['ret_01', 'sector', 'ret_fwd']]
             .rename(columns={'ret_01': 'returns'})
             .sort_index())
