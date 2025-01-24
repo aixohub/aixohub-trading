@@ -58,3 +58,4 @@ from .vchartfile import VChartFile
 
 from .rollover import RollOver
 from .chainer import Chainer
+from .ibdata import IBData

@@ -81,7 +81,7 @@ def run(args=None):
     cerebro = bt.Cerebro()
     code = 'NVDA'
     # 使用自定义数据源
-    data = IBData(host='127.0.0.1', port=7496, clientId=12,
+    data = IBData(host='127.0.0.1', port=4001, clientId=12,
                   name=code,
                   dataname=code,
                   secType='STK',
