@@ -15,9 +15,9 @@ clickhouse_user = "default"
 clickhouse_pwd = ""
 clickhouse_db = 'default'
 
-symbol = "NVDA"
-topic = "stock-nvda"
-tableName = "stock_nvda"
+symbol = "rgti"
+topic = "stock-rgti"
+tableName = "stock_rgti"
 # 创建生产者配置
 conf = {
     'bootstrap.servers': 'www.aixohub.com:9092'  # Kafka 服务器地址
@@ -62,7 +62,7 @@ class IBapi(EWrapper, EClient):
               "BidPastLow:", tickAttribBidAsk.bidPastLow, "AskPastHigh:", tickAttribBidAsk.askPastHigh)
         ticket_data = {
             'symbol': symbol,
-            'datetime': datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S"),
+            'time': datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d %H:%M:%S"),
             'bidPrice': floatMaxString(bidPrice),
             'askPrice': floatMaxString(askPrice),
             'bidSize': floatMaxString(bidSize),
@@ -70,6 +70,7 @@ class IBapi(EWrapper, EClient):
         }
         ticket_data = json.dumps(ticket_data).encode('utf-8')
         self.producer.produce(topic, key='key344', value=ticket_data)
+        self.producer.flush()
 
 
 
@@ -83,7 +84,7 @@ def run_loop():
 
 if __name__ == '__main__':
     app = IBapi()
-    app.connect('127.0.0.1', 4001, 13)
+    app.connect('127.0.0.1', 4001, 8)
 
     app.nextorderId = None
 

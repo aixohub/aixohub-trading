@@ -12,4 +12,4 @@ clickhouse-driver
 confluent-kafka
 python-dotenv
 mysql-connector-python
-git+https://github.com/happydasch/btplotting
+# git+https://github.com/happydasch/btplotting
