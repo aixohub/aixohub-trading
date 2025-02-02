@@ -238,6 +238,7 @@ def on_order_status(data):
 ################################ 框架实现部分，可忽略不看 ###############################
 class OnTickClass(TickerHandlerBase):
     def on_recv_rsp(self, rsp_pb):
+        print(rsp_pb)
         on_tick()
 
 
@@ -284,4 +285,4 @@ if __name__ == '__main__':
 
         # 订阅标的合约的 逐笔，K 线和摆盘，以便获取数据
         quote_context.subscribe(code_list=[TRADING_SECURITY],
-                                subtype_list=[SubType.TICKER, SubType.ORDER_BOOK, TRADING_PERIOD])
+                                subtype_list=[ SubType.ORDER_BOOK])

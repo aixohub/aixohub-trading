@@ -37,13 +37,12 @@ db_connection = mysql.connector.connect(
 )
 cursor = db_connection.cursor()
 
-if __name__ == '__main__':
+
+def stock_consumer(topics):
     c = Consumer(conf)
-
     # 发送消息
-    topic = 'stock-rgti'
-    c.subscribe([topic])
 
+    c.subscribe(topics)
     try:
         while True:
             msg = c.poll(1.0)
@@ -62,8 +61,7 @@ if __name__ == '__main__':
             bidPrice = v['bidPrice']
             askPrice = v['askPrice']
             tableName = 'stock_{}'.format(symbol)
-            sql = f"""INSERT INTO {tableName} (symbol, datetime,  open, close, volume, bid_price, bid_size, ask_price, ask_size) VALUES
-                                    ('{symbol}', '{datetime}',{bidPrice},{askPrice},{bidSize},{bidPrice},{bidSize},{askPrice},{askSize}); """
+            sql = f"""INSERT INTO {tableName} (symbol, datetime,  open, close, volume, bid_price, bid_size, ask_price, ask_size) VALUES ('{symbol}', '{datetime}',{bidPrice},{askPrice},{bidSize},{bidPrice},{bidSize},{askPrice},{askSize}); """
             print(sql)
             cursor.execute(sql)
             db_connection.commit()
@@ -75,5 +73,10 @@ if __name__ == '__main__':
         cursor.close()
         db_connection.close()
         c.close()
+
+
+if __name__ == '__main__':
+    topics = ['stock-rgti', 'stock-nvda', 'stock-mstr']
+    stock_consumer(topics)
 
 
