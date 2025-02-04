@@ -6,7 +6,7 @@ import mysql.connector
 
 conf = {
     'bootstrap.servers': 'www.aixohub.com:9092',
-    'group.id': 'consumer-mysql',
+    'group.id': 'consumer-n',
     'auto.offset.reset': 'earliest'
 
 }

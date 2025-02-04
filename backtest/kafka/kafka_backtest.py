@@ -10,7 +10,7 @@ class MyStrategy(bt.Strategy):
 
     def next(self):
         # 每次获取到新数据时，打印当前的收盘价
-        print(f"Time: {self.data.datetime.datetime(0)}, Close: {self.data.close[0]}")
+        print(f"Time: {self.data.datetime.datetime(0)}, Close: {self.data.close}")
 
 
 if __name__ == '__main__':
@@ -18,7 +18,7 @@ if __name__ == '__main__':
     cerebro = bt.Cerebro()
 
     # 添加 Kafka 数据源
-    kafka_feed = KafkaFeed(topic=['stock-nvda'], group_id='backtrader-nvda', bootstrap_servers=['www.aixohub.com:9092'])
+    kafka_feed = KafkaFeed(topic=['stock-rgti'], group_id='backtrader-nv', bootstrap_servers=['www.aixohub.com:9092'])
     cerebro.adddata(kafka_feed)
 
     # 添加策略

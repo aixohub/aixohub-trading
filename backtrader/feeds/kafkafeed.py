@@ -22,7 +22,6 @@ class KafkaFeed(bt.feed.DataBase):
             'auto.offset.reset': 'earliest',  # 设置消费开始的偏移量
         })
         self.consumer.subscribe(self.p.topic)
-
         self.last_time = None
         self._next_time = time.time()
 
@@ -43,30 +42,31 @@ class KafkaFeed(bt.feed.DataBase):
 
         # 从 Kafka 消费数据
         try:
-            msg = self.consumer.poll(timeout=1.0)  # 超时 1 秒钟，避免阻塞
-            if msg is None:
-                return False  # 如果没有数据，返回 False
-            if msg.error():
-                if msg.error().code() == KafkaError._PARTITION_EOF:
-                    print(f"End of partition reached: {msg.topic()} [{msg.partition()}] @ offset {msg.offset()}")
-                else:
-                    raise KafkaException(msg.error())
-            else:
-                # 解析消息
+            while True:
+                msg = self.consumer.poll(timeout=1.0)  # 超时 1 秒钟，避免阻塞
+
+                if msg is None:
+                    continue
+                if msg.error():
+                    print("Consumer error: {}".format(msg.error()))
+                    continue
+
                 data = json.loads(msg.value().decode('utf-8'))
 
-                timestamp = data['timestamp']
-                open_price = data['open']
-                high_price = data['high']
-                low_price = data['low']
-                close_price = data['close']
-                volume = data['volume']
+                timestamp = data['time']
+                bidSize = data['bidSize']
+                askSize = data['askSize']
+                bidPrice = data['bidPrice']
+                askPrice = data['askPrice']
+                close_price = data['bidPrice']
+                volume =  data['bidSize']
 
                 # 将数据推送到 Backtrader
-                self.lines.datetime[0] = bt.date2num(bt.num2date(timestamp))
-                self.lines.open[0] = open_price
-                self.lines.high[0] = high_price
-                self.lines.low[0] = low_price
+                self.lines.datetime[0] = bt.date2num(timestamp)
+                self.lines.bidSize[0] = bidSize
+                self.lines.bidPrice[0] = bidPrice
+                self.lines.askSize[0] = askSize
+                self.lines.askPrice[0] = askPrice
                 self.lines.close[0] = close_price
                 self.lines.volume[0] = volume
 

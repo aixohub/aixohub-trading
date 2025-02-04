@@ -2,16 +2,39 @@ import backtrader as bt
 from backtrader.feeds import IBData
 from datetime import time, datetime, timedelta
 
+import mysql.connector
+
+# MySQL 配置
+MYSQL_HOST = 'localhost'
+MYSQL_USER = 'jupyternote'
+MYSQL_PASSWORD = 'jupyternote2026'
+MYSQL_DATABASE = 'stock_us'
+
+# 配置IBKR连接
+ibkr_account = 'YOUR_ACCOUNT_NUMBER'
+api_host = '127.0.0.1'
+api_port = 4001
+symbol = 'RGTI'
+
+# 创建 MySQL 连接
+db_connection = mysql.connector.connect(
+    host=MYSQL_HOST,
+    user=MYSQL_USER,
+    password=MYSQL_PASSWORD,
+    database=MYSQL_DATABASE
+)
+cursor = db_connection.cursor()
+
 
 class MomentumIntradayStrategy(bt.Strategy):
     params = (
-        ('open_duration', 30),  # 开盘观察期（分钟）
+        ('open_duration', 10),  # 开盘观察期（分钟）
         ('rsi_period', 14),  # RSI周期
         ('atr_period', 14),  # ATR周期
         ('atr_multiplier', 1.5),  # ATR止损倍数
         ('risk_percent', 1),  # 单笔风险比例
         ('profit_ratio', 2),  # 盈亏比
-        ('trade_start', time(9, 30)),
+        ('trade_start', time(22, 30)),
         ('trade_end', time(15, 55)),
     )
 
@@ -92,18 +115,27 @@ class MomentumIntradayStrategy(bt.Strategy):
                     timedelta(minutes=minutes)).time()
         return new_time
 
+    def notify_order(self, order):
+        if order.status in [order.Completed]:
+            # 订单完成时记录
+            if order.isbuy():
+                direction = 'buy'
+            else:
+                direction = 'sell'
+            print(f'{self.datetime.date()} | {direction}执行 | 价格：{order.executed.price:.2f}')
+            sql = f"""INSERT INTO transaction_details (symbol, trade_date,  buy_sell, price, quantity) VALUES ('{symbol}', '{self.datetime.date()}',{direction},{order.executed.price:.2f},{order.executed.size:.2f}); """
+            print(sql)
+            cursor.execute(sql)
+            db_connection.commit()
+            self.order = None
 
-# 配置IBKR连接
-ibkr_account = 'YOUR_ACCOUNT_NUMBER'
-api_host = '127.0.0.1'
-api_port = 4001
-code ='MSTR'
+
 
 if __name__ == '__main__':
 
     # 添加IBKR数据源
     contract = {
-        "code": code,
+        "code": symbol,
         "secType": "STK",
         "what": "BID_ASK",
         "exchange": "SMART",
@@ -128,7 +160,7 @@ if __name__ == '__main__':
     cerebro.addstrategy(MomentumIntradayStrategy)
 
     # 设置交易参数
-    cerebro.broker.setcash(cash2)
+    cerebro.broker.setcash(10000)
     cerebro.broker.setcommission(
         commission=0.0001,  # 0.01% 佣金
         margin=None,
@@ -146,13 +178,20 @@ if __name__ == '__main__':
 
     print('初始资金: %.2f' % cerebro.broker.getvalue())
     # 运行策略
-    results = cerebro.run()
+    try:
+        results = cerebro.run()
+    except Exception as e:
+        print(e)
+
+    finally:
+        cursor.close()
+        db_connection.close()
+
     print('期末资金: {cerebro.broker.getvalue():.2f}')
 
 
     print(f'夏普比率: {results[0].analyzers.sharpe.get_analysis()["sharperatio"]:.2f}')
     print(f'最大回撤: {results[0].analyzers.drawdown.get_analysis()["max"]["drawdown"]:.2f}%')
-    print(strat.analyzers.ta.get_analysis())
 
 
     # 可视化
