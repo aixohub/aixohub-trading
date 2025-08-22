@@ -22,7 +22,7 @@ def websocket_con():
 
 if __name__ == '__main__':
     app = TradingApp()
-    app.connect("127.0.0.1", 4001, clientId=16)
+    app.connect("127.0.0.1", 7496, clientId=16)
 
     con_thread = threading.Thread(target=websocket_con, daemon=True)
     con_thread.start()

@@ -5,6 +5,8 @@ from ibapi.client import EClient
 from ibapi.contract import Contract
 from ibapi.wrapper import EWrapper
 
+from backtest.ibkr.sample.market_data import ib_port
+
 
 class IBapi(EWrapper, EClient):
     def __init__(self):
@@ -20,7 +22,7 @@ def run_loop():
 
 
 app = IBapi()
-app.connect('127.0.0.1', 7497, 123)
+app.connect('127.0.0.1', ib_port, 123)
 
 # Start the socket in a thread
 api_thread = threading.Thread(target=run_loop, daemon=True)

@@ -16,8 +16,8 @@ clickhouse_pwd = ""
 clickhouse_db = 'default'
 
 symbol = "tsla"
-topic = "stock-tsla"
-tableName = "stock_tsla"
+topic = "stock-" + symbol
+tableName = "stock_" + symbol
 # 创建生产者配置
 conf = {
     'bootstrap.servers': 'www.aixohub.com:9092'  # Kafka 服务器地址
@@ -84,7 +84,7 @@ def run_loop():
 
 if __name__ == '__main__':
     app = IBapi()
-    app.connect('127.0.0.1', 4001, 10)
+    app.connect('127.0.0.1', 4002, 10)
 
     app.nextorderId = None
 

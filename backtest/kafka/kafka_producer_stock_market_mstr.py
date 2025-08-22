@@ -15,9 +15,9 @@ clickhouse_user = "default"
 clickhouse_pwd = ""
 clickhouse_db = 'default'
 
-symbol = "rgti"
-topic = "stock-rgti"
-tableName = "stock_rgti"
+symbol = "tsla"
+topic = "stock-" + symbol
+tableName = "stock_" + symbol
 # 创建生产者配置
 conf = {
     'bootstrap.servers': 'www.aixohub.com:9092'  # Kafka 服务器地址
@@ -69,8 +69,8 @@ class IBapi(EWrapper, EClient):
             'askSize': floatMaxString(askSize)
         }
         ticket_data = json.dumps(ticket_data).encode('utf-8')
-        self.producer.produce(topic, key='key344', value=ticket_data)
-        self.producer.flush()
+        # self.producer.produce(topic, key='key344', value=ticket_data)
+        # self.producer.flush()
 
 
 
@@ -84,7 +84,7 @@ def run_loop():
 
 if __name__ == '__main__':
     app = IBapi()
-    app.connect('127.0.0.1', 4002, 9)
+    app.connect('127.0.0.1', 4002, 16)
 
     app.nextorderId = None
 
@@ -109,5 +109,5 @@ if __name__ == '__main__':
     app.reqTickByTickData(app.nextorderId, contract, "BidAsk", 0, True)
     # Check if the API is connected via orderid
 
-    time.sleep(3600)
+    time.sleep(36000)
     app.disconnect()

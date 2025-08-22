@@ -31,6 +31,8 @@ import time
 from copy import copy
 from datetime import datetime, timedelta
 
+from ibapi.utils import BadMessage
+
 from backtrader import TimeFrame, Position
 from backtrader.metabase import MetaParams
 from backtrader.utils import AutoDict, UTC
@@ -327,15 +329,17 @@ class MetaSingleton(MetaParams):
 def logibmsg(fn):
     def logmsg_decorator(self, *args, **kwargs):
         try:
+            args_repr = [repr(a) for a in args]
+            kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
+            signature = ", ".join(args_repr + kwargs_repr)
             if self._debug:
-                args_repr = [repr(a) for a in args]
-                kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
-                signature = ", ".join(args_repr + kwargs_repr)
                 logger.debug(f"Calling-- {fn.__name__}({signature})")
                 logger.info(f"Calling--- {fn.__name__}({signature})")
             return fn(self, *args, **kwargs)
+        except TypeError as e:
+            logger.info(f"Exception raised in {fn.__name__}. exception: {str(e)}")
         except Exception as e:
-            logger.exception(f"Exception raised in {fn.__name__}. exception: {str(e)}")
+            logger.info(f"Exception raised in {fn.__name__}. exception: {str(e)}")
             raise e
 
     return logmsg_decorator
@@ -661,7 +665,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         ('broker_user_name', ''),
         ('broker_password', ''),
         ('notifyall', False),
-        ('_debug', True),
+        ('_debug', False),
         ('reconnect', 3),  # -1 forever, 0 No, > 0 number of retries
         ('timeout', 3.0),  # timeout between reconnections
         ('timeoffset', True),  # Use offset to server for timestamps if needed

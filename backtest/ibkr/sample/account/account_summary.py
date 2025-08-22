@@ -19,7 +19,7 @@ class TradeApp(EWrapper, EClient):
 
 if __name__ == '__main__':
     app = TradeApp()
-    app.connect("127.0.0.1", 4001, clientId=16)
+    app.connect("127.0.0.1", 7496, clientId=11)
 
     time.sleep(1)
 

@@ -71,7 +71,7 @@ class VWAPStrategy(bt.Strategy):
 
 # 配置IBKR连接
 api_host = '127.0.0.1'
-api_port = 4001
+api_port = 4002
 code = 'MSTR'
 
 if __name__ == '__main__':
@@ -90,8 +90,7 @@ if __name__ == '__main__':
                   secType=contract['secType'],
                   what=contract['what'],
                   exchange=contract['exchange'],
-                  currency=contract['currency'],
-                  timeframe=bt.TimeFrame.Ticks
+                  currency=contract['currency']
                   )
     broker = bt.brokers.IBBroker(host=api_host, port=api_port, clientId=35)
     broker.start()

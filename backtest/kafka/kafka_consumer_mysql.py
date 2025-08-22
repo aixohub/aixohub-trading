@@ -6,7 +6,7 @@ import mysql.connector
 
 conf = {
     'bootstrap.servers': 'www.aixohub.com:9092',
-    'group.id': 'consumer-n',
+    'group.id': 'consumer-mysql',
     'auto.offset.reset': 'earliest'
 
 }
@@ -76,7 +76,7 @@ def stock_consumer(topics):
 
 
 if __name__ == '__main__':
-    topics = ['stock-rgti', 'stock-nvda', 'stock-mstr']
+    topics = ['stock-rgti', 'stock-nvda', 'stock-mstr', 'stock-tsla']
     stock_consumer(topics)
 
 

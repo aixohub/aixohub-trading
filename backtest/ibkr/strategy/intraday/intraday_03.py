@@ -13,8 +13,8 @@ MYSQL_DATABASE = 'stock_us'
 # 配置IBKR连接
 ibkr_account = 'YOUR_ACCOUNT_NUMBER'
 api_host = '127.0.0.1'
-api_port = 4001
-symbol = 'RGTI'
+api_port = 4002
+symbol = "RGTI"
 
 # 创建 MySQL 连接
 db_connection = mysql.connector.connect(
@@ -145,11 +145,10 @@ if __name__ == '__main__':
     data = IBData(host=api_host, port=api_port, clientId=20,
                   name=contract['code'],
                   dataname=contract['code'],
-                  secType=contract['secType'],
-                  what=contract['what'],
-                  exchange=contract['exchange'],
-                  currency=contract['currency'],
-                  timeframe=bt.TimeFrame.Ticks
+                  secType='STK',
+                  what='BID_ASK',
+                  exchange="SMART",
+                  currency='USD'
                   )
     broker = bt.brokers.IBBroker(host=api_host, port=api_port, clientId=35)
     broker.start()
@@ -188,10 +187,6 @@ if __name__ == '__main__':
         db_connection.close()
 
     print('期末资金: {cerebro.broker.getvalue():.2f}')
-
-
-    print(f'夏普比率: {results[0].analyzers.sharpe.get_analysis()["sharperatio"]:.2f}')
-    print(f'最大回撤: {results[0].analyzers.drawdown.get_analysis()["max"]["drawdown"]:.2f}%')
 
 
     # 可视化

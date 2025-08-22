@@ -36,7 +36,7 @@ def run_loop():
 
 if __name__ == '__main__':
     app = IBapi()
-    app.connect('127.0.0.1', 7497, 123)
+    app.connect('127.0.0.1', 4002, 123)
 
     app.nextorderId = None
 
