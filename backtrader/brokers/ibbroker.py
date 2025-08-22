@@ -263,7 +263,9 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
         loss would also be calculated locally), but could be considered to be
         defeating the purpose of working with a live broker
     '''
-    params = ()
+    params = (
+        ('account', None),
+    )
 
     def __init__(self, **kwargs):
         super(IBBroker, self).__init__()
@@ -283,10 +285,10 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
         super(IBBroker, self).start()
         self.ib.start(broker=self)
         if self.ib.connected():
-            self.ib.reqAccountUpdates()
+            self.ib.reqAccountUpdates(account=self.p.account)
             self.ib.reqPositions()
-            self.startingcash = self.cash = self.ib.get_acc_cash()
-            self.startingvalue = self.value = self.ib.get_acc_value()
+            self.startingcash = self.cash = self.ib.get_acc_cash(account=self.p.account)
+            self.startingvalue = self.value = self.ib.get_acc_value(account=self.p.account)
         else:
             self.startingcash = self.cash = 0.0
             self.startingvalue = self.value = 0.0
@@ -306,9 +308,18 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
         logger.debug(f"getvalue: {self.value}")
         return self.value
 
+    def get_account_cash(self, account=None):
+        # This call cannot block if no answer is available from ib
+        self.cash = self.ib.get_account_cash(account)
+        return self.cash
+
     def getposition(self, symbol, clone=True):
         position = self.ib.getposition(symbol, clone=clone)
         logger.info(f"getposition: {position}")
+        return position
+
+    def get_all_position(self):
+        position = self.ib.get_all_position()
         return position
 
     def cancel(self, order):

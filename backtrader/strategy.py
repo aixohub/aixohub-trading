@@ -928,7 +928,8 @@ class Strategy(with_metaclass(MetaStrategy, StrategyBase)):
 
         data = data if data is not None else self.datas[0]
         size = size if size is not None else self.getsizing(data, isbuy=True)
-
+        if symbol is None:
+            symbol = data.contract.localSymbol
         if size:
             return self.broker.buy(
                 self, data=data, symbol=symbol,
@@ -958,6 +959,9 @@ class Strategy(with_metaclass(MetaStrategy, StrategyBase)):
 
         data = data if data is not None else self.datas[0]
         size = size if size is not None else self.getsizing(data, isbuy=False)
+
+        if symbol is None:
+            symbol = data.contract.localSymbol
 
         if size:
             return self.broker.sell(
@@ -1375,6 +1379,21 @@ class Strategy(with_metaclass(MetaStrategy, StrategyBase)):
 
         return self.order_target_value(data=data, target=target, **kwargs)
 
+    def get_account_cash(self, account=None):
+        return  self.broker.get_account_cash(account)
+
+    def get_all_position(self):
+        '''
+        Returns the current position for a given data in a given broker.
+
+        If both are None, the main data and the default broker will be used
+
+        A property ``position`` is also available
+        '''
+        return self.broker.get_all_position()
+
+
+
     def getposition(self, data=None, broker=None):
         '''
         Returns the current position for a given data in a given broker.
@@ -1385,7 +1404,7 @@ class Strategy(with_metaclass(MetaStrategy, StrategyBase)):
         '''
         data = data if data is not None else self.datas[0]
         broker = broker or self.broker
-        return broker.getposition(data)
+        return broker.getposition(data.contract.localSymbol)
 
     position = property(getposition)
 

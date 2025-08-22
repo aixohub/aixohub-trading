@@ -7,6 +7,8 @@ import backtrader as bt
 from backtrader.feeds import IBData
 from datetime import time
 
+from backtrader.stores import IBStore
+
 
 class IntradayStrategy(bt.Strategy):
     params = (
@@ -31,9 +33,10 @@ class IntradayStrategy(bt.Strategy):
 
         # 波动性测量
         self.atr = bt.indicators.ATR(self.data, period=self.p.atr_period)
+        self.get_all_position()
+        self.get_account_cash()
 
     def next(self):
-
         print(f"fast_ma {self.crossover} ")
         # 交易逻辑
         if  self.in_trade_window:
@@ -42,10 +45,6 @@ class IntradayStrategy(bt.Strategy):
 
     def notify_order(self, order):
         print(f" notify_order {order}")
-
-    def notify_trade(self, trade):
-        print(f" notify_trade {trade}")
-
 
 
 
@@ -74,8 +73,6 @@ if __name__ == '__main__':
         "currency": "USD",
     }
 
-
-
     data = IBData(host=api_host, port=api_port, clientId=20,
                   name=contract['code'],
                   dataname=contract['code'],
@@ -86,14 +83,18 @@ if __name__ == '__main__':
                   strike=230,
                   right='C',
                   expiry='20250829',
+                  initAccountFlag= False,
                   timeframe=bt.TimeFrame.Minutes
                   )
+
+
     broker = bt.brokers.IBBroker(host=api_host, port=api_port, clientId=35)
     broker.start()
     cash2 = broker.getcash()
-
+    print(cash2)
     cerebro = bt.Cerebro()
     cerebro.setbroker(broker)
+
     cerebro.adddata(data)
     cerebro.addstrategy(IntradayStrategy)
 

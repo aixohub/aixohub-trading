@@ -37,21 +37,24 @@ class Position(object):
 
     def __str__(self):
         items = list()
-        items.append('--- Position Begin')
-        items.append('- symbol: {}'.format(self.symbol))
-        items.append('- conId: {}'.format(self.conId))
-        items.append('- Size: {}'.format(self.size))
-        items.append('- Price: {}'.format(self.price))
-        items.append('- Price orig: {}'.format(self.price_orig))
-        items.append('- Closed: {}'.format(self.upclosed))
-        items.append('- Opened: {}'.format(self.upopened))
-        items.append('- Adjbase: {}'.format(self.adjbase))
-        items.append('--- Position End')
+        # items.append('--- Position Begin')
+        items.append(f"--- Position --- accountName: {self.accountName} conId: {self.conId} symbol: {self.symbol}  size: {self.size} Price: {self.price} Price orig: {self.price_orig} currency:{self.currency} marketValue: {self.marketValue}  unrealizedPNL: {self.unrealizedPNL}  " )
+        # items.append(f"                                  Closed: {self.upclosed}  Opened: {self.upopened}  Adjbase: {self.adjbase}" )
+        # items.append('--- Position End')
         return '\n'.join(items)
 
-    def __init__(self, size=0, price=0.0, symbol=None, conId=None):
+    def __init__(self, size=0, price=0.0,
+                 symbol=None, conId=None,
+                 currency="",
+                 marketValue=None,
+                 unrealizedPNL=None,
+                 accountName=None):
         self.conId = conId
+        self.currency=currency,
+        self.accountName = accountName
         self.symbol = symbol
+        self.marketValue=marketValue,
+        self.unrealizedPNL=unrealizedPNL,
         self.size = size
         if size:
             self.price = self.price_orig = price

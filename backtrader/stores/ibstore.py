@@ -658,7 +658,8 @@ class IBStore(with_metaclass(MetaSingleton, object)):
     params = (
         ('host', '127.0.0.1'),
         ('port', 7496),
-        ('clientId', None),  # None generates a random clientid 1 -> 2^16
+        ('clientId', 8),  # None generates a random clientid 1 -> 2^16
+        ('broker', None),
         ('broker_host', ''),
         ('broker_request_port', 12345),
         ('broker_subscribe_port', 12345),
@@ -725,6 +726,8 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         self.port_update = False  # indicate whether to signal to broker
 
         self.positions = collections.defaultdict(Position)  # actual positions
+
+        self.orderbyid = dict()  # orders by order id
 
         self._tickerId = itertools.count(self.REQIDBASE)  # unique tickerIds
         self.orderid = None  # next possible orderid (will be itertools.count)
@@ -806,7 +809,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             # datas to try to reconnect or else bail out
             return self.getTickerQueue(start=True)
 
-        elif broker is not None:
+        if broker is not None:
             self.broker = broker
 
     def stop(self):
@@ -2030,7 +2033,11 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
     def openOrder(self, msg):
         '''Receive the event ``openOrder`` events'''
-        self.broker.push_orderstate(msg)
+        self.orderbyid[msg.orderId] = msg
+        if self.broker is not None:
+            self.broker.push_orderstate(msg)
+        else:
+            print(f"openOrder {msg}")
 
     def openOrderEnd(self):
         # TODO: Add event to manage order requests
@@ -2044,7 +2051,10 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
     def orderStatus(self, msg):
         '''Receive the event ``orderStatus``'''
-        self.broker.push_orderstatus(msg)
+        if self.broker is not None:
+            self.broker.push_orderstatus(msg)
+        else:
+            print(f"orderStatus {msg}")
 
     def commissionReport(self, commissionReport):
         '''Receive the event commissionReport'''
@@ -2064,6 +2074,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
                     position = Position(float(pos), float(avgCost), contract.symbol, contract.conId)
                     logger.debug(f"POSITIONS INITIAL: {self.positions}")
                     self.positions[contract.symbol] = position
+                    print(self.positions)
                 else:
                     position = self.positions[contract.symbol]
                     logger.debug(f"POSITION UPDATE: {position}")
@@ -2090,20 +2101,22 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         '''
         if account is None:
             self._event_managed_accounts.wait()
-            account = self.managed_accounts[0]
+            for account in self.managed_accounts:
+                self.conn.reqAccountUpdates(subscribe, bytes(account))
+        else:
+            self.conn.reqAccountUpdates(subscribe, bytes(account))
 
-        self.conn.reqAccountUpdates(subscribe, bytes(account))
+
 
     def accountDownloadEnd(self, accountName):
         # Signals the end of an account update
         # the event indicates it's over. It's only false once, and can be used
         # to find out if it has at least been downloaded once
         self._event_accdownload.set()
-        if False:
-            if self.port_update:
-                self.broker.push_portupdate()
 
-                self.port_update = False
+        if self.port_update:
+            self.broker.push_portupdate()
+            self.port_update = False
 
     def updatePortfolio(self, contract, pos,
                         marketPrice, marketValue,
@@ -2113,14 +2126,22 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         # can kick in at any time
         with self._lock_pos:
             try:
+
                 if not self._event_accdownload.is_set():  # 1st event seen
-                    position = Position(float(pos), float(averageCost), contract.symbol, contract.conId)
+                    position = Position(float(pos), float(averageCost), contract.localSymbol, contract.conId,
+                                        contract.currency, marketValue, unrealizedPNL, accountName)
+                    print(f"POSITIONS INITIAL: {position}")
+                    self.positions[contract.localSymbol] = position
                     logger.debug(f"POSITIONS INITIAL: {self.positions}")
-                    # self.positions[contract.conId] = position
-                    self.positions.setdefault(contract.symbol, position)
+                    # self.positions.setdefault(contract.symbol, position)
                 else:
-                    position = self.positions[contract.symbol]
-                    logger.debug(f"POSITION UPDATE: {position}")
+                    position = Position(float(pos), float(averageCost), contract.localSymbol, contract.conId,
+                                        contract.currency, marketValue, unrealizedPNL, accountName)
+
+                    print(f"POSITION UPDATE: {position}")
+                    self.positions[contract.localSymbol] = position
+
+                    logger.debug(f"POSITION UPDATE: {self.positions[contract.localSymbol]}")
                     if not position.fix(float(pos), averageCost):
                         err = ('The current calculated position and '
                                'the position reported by the broker do not match. '
@@ -2140,11 +2161,17 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         # and updates could be happening in the background
         with self._lock_pos:
             position = self.positions[symbol]
+            position.symbol = symbol
             if clone:
                 return copy(position)
 
             return position
 
+    def get_all_position(self):
+        if self.positions is not None:
+            for p in self.positions:
+                print(self.positions.get(p))
+        return self.positions
 
     @logibmsg
     def updateAccountValue(self, key, value, currency="BASE", accountName=None):
@@ -2164,6 +2191,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
                 self.acc_value[accountName] = value
             elif key == 'CashBalance' and currency == 'BASE':
                 self.acc_cash[accountName] = value
+
 
     @logibmsg
     def get_acc_values(self, account=None):
@@ -2234,6 +2262,18 @@ class IBStore(with_metaclass(MetaSingleton, object)):
                 pass
 
         return float()
+
+    @logibmsg
+    def get_account_cash(self, account=None):
+        if not self.managed_accounts:
+            return float()
+        elif len(self.managed_accounts) > 1:
+            for val in self.acc_cash:
+                print(f" account :{val}  value: {self.acc_cash[val]}")
+        else:
+            val = self.managed_accounts[0]
+            print(f" account :{val}  value: {self.acc_cash[val]}")
+
 
     @logibmsg
     def get_acc_cash(self, account=None):
