@@ -37,6 +37,7 @@ class IntradayStrategy(bt.Strategy):
         self.get_account_cash()
 
 
+
     def next(self):
         print(f"fast_ma {self.crossover} ")
         # 交易逻辑

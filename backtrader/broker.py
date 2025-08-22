@@ -148,6 +148,9 @@ class BrokerBase(with_metaclass(MetaBroker, object)):
     def cancel(self, order):
         raise NotImplementedError
 
+    def cancel_all_open_orders(self):
+        raise NotImplementedError
+
     def buy(self, owner, data, size=None, price=None, plimit=None,
             exectype=None, valid=None, tradeid=0, oco=None,
             trailamount=None, trailpercent=None,

@@ -771,6 +771,9 @@ class Strategy(with_metaclass(MetaStrategy, StrategyBase)):
         '''Cancels the order in the broker'''
         self.broker.cancel(order)
 
+    def cancel_all_open_orders(self):
+        self.broker.cancel_all_open_orders()
+
     def buy(self, data=None, symbol=None,
             size=None, price=None, plimit=None,
             exectype=None, valid=None, tradeid=0, oco=None,

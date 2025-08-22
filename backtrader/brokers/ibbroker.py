@@ -333,6 +333,9 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
 
         self.ib.cancelOrder(order.orderId)
 
+    def cancel_all_open_orders(self):
+        self.ib.cancel_all_open_orders()
+
     def orderstatus(self, order):
         try:
             o = self.orderbyid[order.orderId]

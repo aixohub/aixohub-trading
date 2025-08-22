@@ -31,6 +31,7 @@ import time
 from copy import copy
 from datetime import datetime, timedelta
 
+from ibapi.order_cancel import OrderCancel
 from ibapi.utils import BadMessage
 
 from backtrader import TimeFrame, Position
@@ -2022,6 +2023,12 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         if mult:
             contract.multiplier = bytes(mult)
         return contract
+
+    def cancel_all_open_orders(self):
+        """
+        Proxy to cancelAllOrder
+        """
+        self.conn.reqGlobalCancel(OrderCancel())
 
     def cancelOrder(self, orderid):
         '''Proxy to cancelOrder'''
