@@ -36,6 +36,7 @@ class IntradayStrategy(bt.Strategy):
         self.get_all_position()
         self.get_account_cash()
 
+
     def next(self):
         print(f"fast_ma {self.crossover} ")
         # 交易逻辑
@@ -88,10 +89,8 @@ if __name__ == '__main__':
                   )
 
 
-    broker = bt.brokers.IBBroker(host=api_host, port=api_port, clientId=35)
+    broker = bt.brokers.IBBroker(host=api_host, port=api_port, clientId=35, account ="U15282766")
     broker.start()
-    cash2 = broker.getcash()
-    print(cash2)
     cerebro = bt.Cerebro()
     cerebro.setbroker(broker)
 

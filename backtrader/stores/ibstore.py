@@ -758,7 +758,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             print(f"TWS Failed to connect: {e}")
 
         if self.connected() and self.p.initAccountFlag:
-            self.reqAccountUpdates(account=self.p.account)
+            self.reqAccountUpdates(account=None)
             self.reqPositions()
 
         # This utility key function transforms a barsize into a:
@@ -2130,7 +2130,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
                 if not self._event_accdownload.is_set():  # 1st event seen
                     position = Position(float(pos), float(averageCost), contract.localSymbol, contract.conId,
                                         contract.currency, marketValue, unrealizedPNL, accountName)
-                    print(f"POSITIONS INITIAL: {position}")
+                    # print(f"POSITIONS INITIAL: {position}")
                     self.positions[contract.localSymbol] = position
                     logger.debug(f"POSITIONS INITIAL: {self.positions}")
                     # self.positions.setdefault(contract.symbol, position)
@@ -2138,7 +2138,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
                     position = Position(float(pos), float(averageCost), contract.localSymbol, contract.conId,
                                         contract.currency, marketValue, unrealizedPNL, accountName)
 
-                    print(f"POSITION UPDATE: {position}")
+                    # print(f"POSITION UPDATE: {position}")
                     self.positions[contract.localSymbol] = position
 
                     logger.debug(f"POSITION UPDATE: {self.positions[contract.localSymbol]}")
@@ -2273,6 +2273,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         else:
             val = self.managed_accounts[0]
             print(f" account :{val}  value: {self.acc_cash[val]}")
+        return  self.acc_cash[account]
 
 
     @logibmsg
@@ -2309,9 +2310,9 @@ class IBStore(with_metaclass(MetaSingleton, object)):
                         else:
                             total += val
                     return total
-
-                # Only 1 account, fall through to return only 1
-                account = self.managed_accounts[0]
+                elif len(self.managed_accounts) == 1:
+                    # Only 1 account, fall through to return only 1
+                    return self.managed_accounts[0]
 
             try:
                 return self.acc_cash[account]

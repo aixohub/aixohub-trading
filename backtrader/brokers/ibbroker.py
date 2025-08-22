@@ -273,7 +273,7 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
         self.ib = ibstore.IBStore(**kwargs)
         self.startingcash = self.cash = 0.0
         self.startingvalue = self.value = 0.0
-
+        self.account = self.p.account
         self._lock_orders = threading.Lock()  # control access
         self.orderbyid = dict()  # orders by order id
         self.executions = dict()  # notified executions
@@ -285,7 +285,7 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
         super(IBBroker, self).start()
         self.ib.start(broker=self)
         if self.ib.connected():
-            self.ib.reqAccountUpdates(account=self.p.account)
+            self.ib.reqAccountUpdates(account=None)
             self.ib.reqPositions()
             self.startingcash = self.cash = self.ib.get_acc_cash(account=self.p.account)
             self.startingvalue = self.value = self.ib.get_acc_value(account=self.p.account)
@@ -299,7 +299,7 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
 
     def getcash(self, account=None):
         # This call cannot block if no answer is available from ib
-        self.cash = self.ib.get_acc_cash(account)
+        self.cash = self.ib.get_acc_cash(self.account)
         logger.debug(f"get_acc_cash: {self.cash}")
         return self.cash
 
