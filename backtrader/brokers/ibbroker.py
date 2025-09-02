@@ -386,6 +386,9 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
                         clientId=self.ib.clientId,
                         orderId=orderId,
                         **kwargs)
+        if self.account is not None:
+            print(f"iborder  origin {order.account}  after account =  {self.account} origin {order.account}")
+            order.account = self.account
 
         order.addcomminfo(self.getcommissioninfo(data))
         return order
@@ -393,6 +396,7 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
     def buy(self, owner, data, symbol=None,
             size=1, price=None, plimit=None,
             exectype=None, valid=None, tradeid=0,
+            account=None,
             **kwargs):
 
         order = self._makeorder(
@@ -401,6 +405,7 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
             size=size, price=price,
             plimit=plimit, exectype=exectype,
             valid=valid, tradeid=tradeid,
+            account=account,
             **kwargs)
 
         return self.submit(order)
@@ -408,11 +413,17 @@ class IBBroker(with_metaclass(MetaIBBroker, BrokerBase)):
     def sell(self, owner, data, symbol=None,
              size=None, price=None, plimit=None,
              exectype=None, valid=None, tradeid=0,
+             account=None,
              **kwargs):
 
+
         order = self._makeorder(
-            'SELL', symbol,
-            owner, data, size, price, plimit, exectype, valid, tradeid,
+            'SELL', owner, data=data,
+            symbol=symbol,
+            size=size, price=price,
+            plimit=plimit, exectype=exectype,
+            valid=valid, tradeid=tradeid,
+            account=account,
             **kwargs)
 
         return self.submit(order)

@@ -55,7 +55,7 @@ class VolumeMomentum(bt.Indicator):
 
 
 class VWAP(bt.Indicator):
-    lines = ('vwap',)
+    lines = ('vwap.py',)
     params = (('period', 15),)
 
     def __init__(self):
@@ -135,7 +135,7 @@ class IBKRPositionInitStrategy(bt.Strategy):
         buy_condition_2 = self.data.close[0] > self.vwap[0] and self.data.close[0] > self.sma[0]
         buy_condition_3 = self.acceleration[0] > 0
         print(
-            f"""symbol: {symbol} time : {date}  buy1:{buy_condition_1} buy2:{buy_condition_2} buy3:{buy_condition_3}  price_change:{self.price_change[0]:.2f}  volume_momentum:{self.volume_momentum[0]:.2f}  vwap:{self.vwap[0]:.2f}  sma:{self.sma[0]:.2f} acceleration : {acceleration:.2f}  askPrice : {self.data.askPrice[0]}  bidPrice : {self.data.bidPrice[0]}  askSize : {self.data.askSize[0]} bidSize : {self.data.bidSize[0]}  """)
+            f"""symbol: {symbol} time : {date}  buy1:{buy_condition_1} buy2:{buy_condition_2} buy3:{buy_condition_3}  price_change:{self.price_change[0]:.2f}  volume_momentum:{self.volume_momentum[0]:.2f}  vwap.py:{self.vwap[0]:.2f}  sma:{self.sma[0]:.2f} acceleration : {acceleration:.2f}  askPrice : {self.data.askPrice[0]}  bidPrice : {self.data.bidPrice[0]}  askSize : {self.data.askSize[0]} bidSize : {self.data.bidSize[0]}  """)
         # self.buy(data=self.data, symbol='nvda', size=1, price=100)
         # self.sell(data=self.data, symbol='nvda', size=1, price=100)
         # self.close()

@@ -76,6 +76,8 @@ from .williams import *
 from .rmi import *
 from .awesomeoscillator import *
 from .accdecoscillator import *
+from .vwap import *
+from .kdj import *
 
 
 from .dv2 import *  # depends on percentrank

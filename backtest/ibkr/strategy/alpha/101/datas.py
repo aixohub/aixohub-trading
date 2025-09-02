@@ -58,11 +58,11 @@ def get_all_date_data(start_time, end_time, list_assets):
         "成交额": "amount",
         "涨跌幅": "pctChg"})
     # 计算平均成交价
-    df_all['vwap'] =  df_all.amount / df_all.volume / 100
+    df_all['vwap.py'] =  df_all.amount / df_all.volume / 100
 
     # 返回计算因子需要的列
     df_all = df_all.reset_index()
-    df_all = df_all[['asset','date', "open", "close", "high", "low", "volume", 'vwap', "pctChg"]]
+    df_all = df_all[['asset','date', "open", "close", "high", "low", "volume", 'vwap.py', "pctChg"]]
     return df_all
 
 def get_zz500_stocks(time):

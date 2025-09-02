@@ -856,8 +856,8 @@ class BackBroker(bt.BrokerBase):
             dtcoc = order.created.dt
             exprice = order.created.pclose
         else:
-            if not self.p.coo and order.data.datetime[0] <= order.created.dt:
-                return    # can only execute after creation time
+            # if not self.p.coo and order.data.datetime[0] <= order.created.dt:
+            #     return    # can only execute after creation time
 
             dtcoc = None
             exprice = popen

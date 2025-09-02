@@ -129,7 +129,7 @@ class Alphas191(Alphas):
         self.close = df_data['close'] # 收盘价
         self.volume = df_data['volume'] # 成交量
         self.returns = Returns(df_data['close']) # 日收益率
-        self.vwap = df_data['vwap']  # 成交均价
+        self.vwap = df_data['vwap.py']  # 成交均价
         self.close_prev = df_data['close'].shift(1)#前一天收盘价        
         self.amount = df_data['amount']#交易额
         

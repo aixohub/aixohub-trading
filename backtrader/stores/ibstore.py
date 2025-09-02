@@ -121,7 +121,7 @@ class RTVolume(object):
         ('size', float),
         ('datetime', _ts2dt),
         ('volume', float),
-        ('vwap', float),
+        ('vwap.py', float),
         ('single', bool)
     ]
 

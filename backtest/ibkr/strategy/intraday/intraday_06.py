@@ -39,11 +39,10 @@ class IntradayStrategy(bt.Strategy):
 
 
     def next(self):
-        print(f"fast_ma {self.crossover} ")
+        print(f"fast_ma { self.fast_ma} {self.data.close[0]} {self.crossover >0} ")
         # 交易逻辑
         if  self.in_trade_window:
-            # self.buy(size=1, price=0.01, plimit =0.01,  exectype= bt.Order.Limit)
-            self.buy_bracket(size=1, price=self.data.close[0] + 5, plimit =0.01,  limitprice=self.data.close[0] + 10,  stopprice=self.data.close[0] -5)
+            self.buy_bracket( size=1,  price=self.data.close[0] - 10, plimit=self.data.close[0] + 5,  limitprice=self.data.close[0] + 20,  stopprice=self.data.close[0] -30)
             self.in_trade_window = False
 
     def notify_order(self, order):
@@ -70,7 +69,7 @@ if __name__ == '__main__':
 
     contract = {
         "code": code,
-        "secType": "OPT",
+        "secType": "STK",
         "what": "BID_ASK",
         "exchange": "SMART",
         "currency": "USD",
@@ -83,9 +82,6 @@ if __name__ == '__main__':
                   what=contract['what'],
                   exchange=contract['exchange'],
                   currency=contract['currency'],
-                  strike=230,
-                  right='C',
-                  expiry='20250929',
                   initAccountFlag= False,
                   timeframe=bt.TimeFrame.Minutes
                   )

@@ -932,7 +932,8 @@ class Strategy(with_metaclass(MetaStrategy, StrategyBase)):
         data = data if data is not None else self.datas[0]
         size = size if size is not None else self.getsizing(data, isbuy=True)
         if symbol is None:
-            symbol = data.contract.localSymbol
+            if hasattr(data, "contract"):
+                symbol = data.contract.localSymbol
         if size:
             return self.broker.buy(
                 self, data=data, symbol=symbol,
@@ -964,11 +965,11 @@ class Strategy(with_metaclass(MetaStrategy, StrategyBase)):
         size = size if size is not None else self.getsizing(data, isbuy=False)
 
         if symbol is None:
-            symbol = data.contract.localSymbol
-
+            if hasattr(data, "contract"):
+                symbol = data.contract.localSymbol
         if size:
             return self.broker.sell(
-                self, data, symbol=symbol,
+                self, data=data, symbol=symbol,
                 size=abs(size), price=price, plimit=plimit,
                 exectype=exectype, valid=valid, tradeid=tradeid, oco=oco,
                 trailamount=trailamount, trailpercent=trailpercent,
@@ -1158,6 +1159,7 @@ class Strategy(with_metaclass(MetaStrategy, StrategyBase)):
             kargs.update(stopargs)
             kargs.update(kwargs)
             kargs['parent'] = o
+            kargs['parentId'] = o.orderId
             kargs['transmit'] = limitexec is None
             kargs['size'] = o.size
             ostop = self.sell(**kargs)
@@ -1171,6 +1173,7 @@ class Strategy(with_metaclass(MetaStrategy, StrategyBase)):
             kargs.update(limitargs)
             kargs.update(kwargs)
             kargs['parent'] = o
+            kargs['parentId'] = o.orderId
             kargs['transmit'] = True
             kargs['size'] = o.size
             olimit = self.sell(**kargs)
@@ -1230,6 +1233,7 @@ class Strategy(with_metaclass(MetaStrategy, StrategyBase)):
             kargs.update(stopargs)
             kargs.update(kwargs)
             kargs['parent'] = o
+            kargs['parentId'] = o.orderId
             kargs['transmit'] = limitexec is None  # transmit if last
             kargs['size'] = o.size
             ostop = self.buy(**kargs)
@@ -1242,7 +1246,8 @@ class Strategy(with_metaclass(MetaStrategy, StrategyBase)):
                          valid=valid, tradeid=tradeid)
             kargs.update(limitargs)
             kargs.update(kwargs)
-            kargs['parent'] = o
+            kargs['parent'] = o.ordewid
+            kargs['parentId'] = o.orderId
             kargs['transmit'] = True
             kargs['size'] = o.size
             olimit = self.buy(**kargs)

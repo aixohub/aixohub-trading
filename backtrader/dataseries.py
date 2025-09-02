@@ -105,7 +105,11 @@ class DataSeries(LineSeries):
 
 
 class OHLC(DataSeries):
-    lines = ('close', 'low', 'high', 'open', 'volume', 'bidPrice', 'bidSize', 'askPrice', 'askSize', 'openinterest',)
+    lines = ('close', 'low', 'high', 'open', 'volume', 'openinterest',)
+
+
+# class OHLCBidAsk(OHLC):
+#     lines = (('bidPrice', 'bidSize', 'askPrice', 'askSize'),)
 
 
 class OHLCDateTime(OHLC):

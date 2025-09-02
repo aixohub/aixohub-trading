@@ -7,7 +7,7 @@ import datetime
 
 
 class VWAP(bt.Indicator):
-    lines = ('vwap',)
+    lines = ('vwap.py',)
     params = (('period', 0),)  # 0表示全天计算
 
     def __init__(self):
