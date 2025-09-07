@@ -1,6 +1,7 @@
 
 
 import backtrader as bt
+from . import Highest, Lowest
 
 class KDJ(bt.Indicator):
     lines = ('k', 'd', 'j',)
@@ -14,8 +15,9 @@ class KDJ(bt.Indicator):
 
     def __init__(self):
         # RSV = (close - low_n) / (high_n - low_n) * 100
-        low_n = bt.ind.Lowest(self.data.low, period=self.p.period)
-        high_n = bt.ind.Highest(self.data.high, period=self.p.period)
+        low_n =  Lowest(self.data.low, period=self.p.period)
+        high_n = Highest(self.data.high, period=self.p.period)
+        print(f""" low_n {high_n}  {low_n}""")
         rsv = (self.data.close - low_n) / (high_n - low_n) * 100
 
         # K, D 用 EMA 计算

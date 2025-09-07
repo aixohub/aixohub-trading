@@ -573,6 +573,8 @@ class BackBroker(bt.BrokerBase):
             # pseudo-execute the order to get the remaining cash after exec
             cash = self._execute(order, cash=cash, position=position)
 
+            if cash is None:
+                continue
             if cash >= 0.0:
                 self.submit_accept(order)
                 continue

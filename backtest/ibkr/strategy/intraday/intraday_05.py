@@ -30,7 +30,7 @@ class IntradayStrategy(bt.Strategy):
         self.fast_ma = bt.indicators.SMA(self.data.close, period=self.p.fast_ma)
         self.slow_ma = bt.indicators.SMA(self.data.close, period=self.p.slow_ma)
         self.crossover = bt.indicators.CrossOver(self.fast_ma, self.slow_ma)
-
+        self.rsi1 = bt.ind.RSI(self.data.close, period=self.params.rsi_period)
         # 波动性测量
         self.atr = bt.indicators.ATR(self.data, period=self.p.atr_period)
         self.get_all_position()
@@ -43,7 +43,7 @@ class IntradayStrategy(bt.Strategy):
         # 交易逻辑
         if  self.in_trade_window:
             # self.buy(size=1, price=0.01, plimit =0.01,  exectype= bt.Order.Limit)
-            self.buy_bracket(size=1, price=self.data.close[0] + 5, plimit =0.01,  limitprice=self.data.close[0] + 10,  stopprice=self.data.close[0] -5)
+            self.buy_bracket(size=1, price=self.data.close[0] - 5, plimit =0.01,  limitprice=self.data.close[0] + 10,  stopprice=self.data.close[0] -30)
             self.in_trade_window = False
 
     def notify_order(self, order):
@@ -85,7 +85,7 @@ if __name__ == '__main__':
                   currency=contract['currency'],
                   strike=230,
                   right='C',
-                  expiry='20250929',
+                  expiry='20250926',
                   initAccountFlag= False,
                   timeframe=bt.TimeFrame.Minutes
                   )
@@ -97,6 +97,8 @@ if __name__ == '__main__':
     cerebro.setbroker(broker)
 
     cerebro.adddata(data)
+    cerebro.resampledata(data, timeframe=bt.TimeFrame.Minutes, compression=5)  # 5分钟
+
     cerebro.addstrategy(IntradayStrategy)
 
 

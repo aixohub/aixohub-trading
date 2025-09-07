@@ -7,6 +7,7 @@ import backtrader as bt
 from backtrader.feeds import IBData
 from datetime import time
 
+from backtrader.indicators import KDJ
 from backtrader.stores import IBStore
 
 
@@ -14,6 +15,12 @@ class IntradayStrategy(bt.Strategy):
     params = (
         ('fast_ma', 5),  # 5周期快速均线
         ('slow_ma', 20),  # 20周期慢速均线
+
+        # RSI参数
+        ('rsi_period', 14),
+        ('rsi_oversold', 30),
+        ('rsi_overbought', 70),
+
         ('atr_period', 14),  # ATR周期
         ('risk_percent', 1),  # 单笔风险百分比
         ('profit_target', 2),  # 止盈比例 (相对于止损)
@@ -26,10 +33,24 @@ class IntradayStrategy(bt.Strategy):
         self.in_trade_window = True
         self.has_order = True
 
+        self.data1 = self.datas[0]  # 1分钟数据（主数据）
+
+
         # 均线交叉信号
-        self.fast_ma = bt.indicators.SMA(self.data.close, period=self.p.fast_ma)
-        self.slow_ma = bt.indicators.SMA(self.data.close, period=self.p.slow_ma)
-        self.crossover = bt.indicators.CrossOver(self.fast_ma, self.slow_ma)
+
+        self.ema_fast1 = bt.ind.EMA(self.data.close, period=self.p.fast_ma)
+        self.ema_slow1 = bt.ind.EMA(self.data.close, period=self.p.slow_ma)
+
+        self.crossover1 = bt.indicators.CrossOver(self.ema_fast1, self.ema_slow1)
+
+        self.rsi1 = bt.ind.RSI(self.data.close, period=self.params.rsi_period)
+
+
+        if len(self.datas) > 2:
+            self.data5 = self.datas[1]  # 5分钟数据
+            self.ema_fast5 = bt.ind.EMA(self.data5.close, period=self.p.fast_ma)
+            self.ema_slow5 = bt.ind.EMA(self.data5.close, period=self.p.slow_ma)
+            self.crossover5 = bt.indicators.CrossOver(self.ema_fast5, self.ema_slow5)
 
         # 波动性测量
         self.atr = bt.indicators.ATR(self.data, period=self.p.atr_period)
@@ -39,7 +60,7 @@ class IntradayStrategy(bt.Strategy):
 
 
     def next(self):
-        print(f"fast_ma { self.fast_ma} {self.data.close[0]} {self.crossover >0} ")
+        print(f"ema_fast1 { self.ema_fast1[0]}  ema_slow1 { self.ema_slow1[0]}  {self.data.close[0]} {self.crossover1 >0} {self.rsi1[0]} { self.atr[0]} ")
         # 交易逻辑
         if  self.in_trade_window:
             self.buy_bracket( size=1,  price=self.data.close[0] - 10, plimit=self.data.close[0] + 5,  limitprice=self.data.close[0] + 20,  stopprice=self.data.close[0] -30)
@@ -54,7 +75,7 @@ class IntradayStrategy(bt.Strategy):
 ibkr_account = 'U15282766'
 api_host = '127.0.0.1'
 api_port = 4002
-code ='TSLA'
+code ='tsla'
 
 if __name__ == '__main__':
 

@@ -125,5 +125,4 @@ if __name__ == '__main__':
     print(f'夏普比率: {results[0].analyzers.sharpe.get_analysis()["sharperatio"]:.2f}')
     print(f'最大回撤: {results[0].analyzers.drawdown.get_analysis()["max"]["drawdown"]:.2f}%')
 
-    # 可视化
-    cerebro.plot(style='candlestick')
+

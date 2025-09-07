@@ -226,7 +226,7 @@ class OrderBase(with_metaclass(MetaParams, object)):
         ('exectype', None), ('valid', None), ('tradeid', 0), ('oco', None),
         ('trailamount', None), ('trailpercent', None),
         ('parent', None), ('transmit', True),
-        ('simulated', False),
+        ('simulated', False), ('orderId', 0),
         # To support historical order evaluation
         ('histnotify', False),
     )
@@ -454,7 +454,8 @@ class OrderBase(with_metaclass(MetaParams, object)):
         submitted'''
         self.status = Order.Submitted
         self.broker = broker
-        self.plen = len(self.data)
+        if self.data is not None:
+            self.plen = len(self.data)
 
     def accept(self, broker=None):
         '''Marks an order as accepted'''

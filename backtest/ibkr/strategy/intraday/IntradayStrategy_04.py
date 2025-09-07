@@ -13,7 +13,7 @@ from datetime import datetime, time
 class MultiTimeframeRSI_KDJ_Strategy(bt.Strategy):
     params = (
         # RSI参数
-        ('rsi_period', 14),
+        ('rsi_period', 60),
         ('rsi_oversold', 30),
         ('rsi_overbought', 70),
         # KDJ参数
@@ -68,7 +68,7 @@ class MultiTimeframeRSI_KDJ_Strategy(bt.Strategy):
         if self.order:
             return
 
-        current_price = self.data1.close[0]
+        current_price = self.data.close[0]
         current_time = self.data1.datetime.time()
 
 
@@ -184,7 +184,8 @@ class MultiTimeframeRSI_KDJ_Strategy(bt.Strategy):
             signal_info = f"卖出信号: {', '.join(sell_signals)}"
             self.log_sell_signal(signal_info, current_price)
             self.order = self.sell(size=self.position_size, price=current_price)
-            self.buy_bracket()
+            self.position_size = 0
+
 
     def log_buy_signal(self, signal, price):
         '''记录买入信号'''
@@ -222,8 +223,9 @@ class MultiTimeframeRSI_KDJ_Strategy(bt.Strategy):
         if order.status in [order.Completed]:
             if order.isbuy():
                 self.log(
-                    'BUY  EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
+                    'BUY  EXECUTED, Price: %.2f, size: %.2f, Cost: %.2f, Comm %.2f' %
                     (order.executed.price,
+                     order.executed.size,
                      order.executed.value,
                      order.executed.comm))
                 self.buyprice = order.executed.price
@@ -232,8 +234,9 @@ class MultiTimeframeRSI_KDJ_Strategy(bt.Strategy):
                 self.has_position = True
             else:  # Sell
                 self.has_position = False
-                self.log('SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
+                self.log('SELL EXECUTED, Price: %.2f, size: %.2f, Cost: %.2f, Comm %.2f' %
                          (order.executed.price,
+                          order.executed.size,
                           order.executed.value,
                           order.executed.comm))
                 # 记录交易详情
@@ -329,6 +332,8 @@ def run_backtest():
     cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe')
     cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
     cerebro.addanalyzer(bt.analyzers.Returns, _name='returns')
+    cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='trades')
+
 
     print('初始资金: %.2f' % cerebro.broker.getvalue())
 
